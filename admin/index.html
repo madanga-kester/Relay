@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relay Admin · Sign in</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="admin-login-page">
+  <main class="login-shell">
+    <section class="login-brand-panel">
+      <div class="admin-wordmark"><span class="wordmark-mark">r</span><span>relay</span><small>ADMIN CONSOLE</small></div>
+      <div class="login-brand-copy"><span class="eyebrow">Private operations workspace</span><h1>Keep the marketplace moving.</h1><p>Review campaigns, communities, applications, placements, and platform activity from one protected console.</p></div>
+      <div class="login-brand-foot"><span>Independent admin portal</span><span>v1.0 · Frontend prototype</span></div>
+    </section>
+    <section class="login-form-panel">
+      <div class="login-form-wrap"><span class="eyebrow">Admin access</span><h2>Welcome back</h2><p class="muted">Sign in to continue to the Relay operations console.</p>
+        <form id="admin-login-form" class="admin-form">
+          <label>Email address<input id="admin-email" type="email" value="admin@relay.local" autocomplete="username" required /></label>
+          <label>Password<input id="admin-password" type="password" value="admin123" autocomplete="current-password" required /></label>
+          <div class="login-options"><label class="checkbox-label"><input type="checkbox" checked /> Keep me signed in</label><span>Protected workspace</span></div>
+          <button class="primary-button" type="submit">Sign in to Admin <span>→</span></button>
+          <p id="login-error" class="form-error" aria-live="polite"></p>
+        </form>
+        <div class="login-note"><span class="lock-dot">⌁</span><span>This is a separate admin-only prototype. It does not share the main marketplace authentication flow.</span></div>
+      </div>
+    </section>
+  </main>
+  <script src="./admin.js"></script>
+</body>
+</html>

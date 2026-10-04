@@ -1,0 +1,3 @@
+
+## Revision — community-owner product workflow
+The workspace is now organized around monetizing communities the owner already manages, not advertising products. The primary navigation is Overview, Campaigns, My Communities, Performance, Earnings, Activity, and Settings, with Campaigns and My Communities visually emphasized. Overview is an owner command center: it shows earned this month, matched campaigns available to take, an action queue for items requiring attention, and a community-health summary. Supporting pages keep those workflows separate so campaign discovery, portfolio health, performance, payouts, activity, and preferences do not compete on one screen.

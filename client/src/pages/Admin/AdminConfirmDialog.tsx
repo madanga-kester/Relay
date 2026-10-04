@@ -1,0 +1,5 @@
+import { AlertTriangle, X } from "lucide-react";
+
+export default function AdminConfirmDialog({ title, description, confirmLabel, onConfirm, onCancel, danger = false }: { title: string; description: string; confirmLabel: string; onConfirm: () => void; onCancel: () => void; danger?: boolean }) {
+  return <div className="admin-confirm-backdrop" role="presentation" onClick={onCancel}><section className="admin-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="admin-confirm-title" onClick={(event) => event.stopPropagation()}><button className="admin-confirm-close" type="button" aria-label="Cancel" onClick={onCancel}><X size={17} /></button><span className={`admin-confirm-icon${danger ? " danger" : ""}`}><AlertTriangle size={20} /></span><h2 id="admin-confirm-title">{title}</h2><p>{description}</p><div className="admin-confirm-actions"><button className="admin-confirm-cancel" type="button" onClick={onCancel}>Cancel</button><button className={`admin-confirm-submit${danger ? " danger" : ""}`} type="button" onClick={onConfirm}>{confirmLabel}</button></div></section></div>;
+}
