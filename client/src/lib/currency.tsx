@@ -20,7 +20,9 @@ const CurrencyContext = createContext<CurrencyContextValue | undefined>(undefine
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>(() => {
     const saved = localStorage.getItem("relay-currency") as Currency | null;
-    return saved && CURRENCY_OPTIONS.includes(saved) ? saved : DEFAULT_CURRENCY;
+    const initial = saved && CURRENCY_OPTIONS.includes(saved) ? saved : DEFAULT_CURRENCY;
+    activeCurrency = initial;
+    return initial;
   });
   useEffect(() => { activeCurrency = currency; localStorage.setItem("relay-currency", currency); }, [currency]);
   const value = useMemo(() => ({ currency, setCurrency: (next: Currency) => { activeCurrency = next; setCurrencyState(next); }, format: (amount: number, decimals = 2) => formatCurrency(amount, decimals, currency) }), [currency]);

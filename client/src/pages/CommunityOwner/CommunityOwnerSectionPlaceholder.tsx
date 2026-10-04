@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowUpRight, CheckCircle2, Clock3, MapPin, MousePointer2, S
 import { Link, useRoute } from "wouter";
 import { useState } from "react";
 import WorkspaceShell from "@/components/WorkspaceShell";
-
+import { displayMoney } from "@/data/marketplaceData";
 type CampaignStatus = "Matching" | "Application Pending" | "Accepted" | "Completed";
 type Campaign = {
   id: string;
@@ -53,7 +53,7 @@ function CampaignCard({ campaign, onApply }: { campaign: Campaign; onApply?: (ca
   return <article className="community-campaign-card">
     <div className="community-campaign-card-top"><div><span className={`community-campaign-status community-campaign-status-${campaign.status.toLowerCase().replaceAll(" ", "-")}`}><span /> {campaign.status}</span><h2>{campaign.name}</h2><p>{campaign.advertiser}</p></div><span className="community-campaign-fit">{campaign.fit}</span></div>
     <div className="community-campaign-details"><span><small>Platform</small><strong>{campaign.platform}</strong></span><span><small>Category</small><strong>{campaign.category}</strong></span><span><small>Target audience</small><strong>{campaign.audience}</strong></span><span><small>Target location</small><strong><MapPin size={12} /> {campaign.location}</strong></span><span><small>Duration</small><strong>{campaign.duration}</strong></span><span><small>Required audience</small><strong><UsersRound size={12} /> {campaign.minimumSize}</strong></span></div>
-    <div className="community-campaign-card-footer"><span><b>{campaign.earnings}</b><small>earnings offered</small></span>{campaign.clicks && <span><b>{campaign.clicks}</b><small>tracked results</small></span>}{isMatching && onApply ? <button className="accept-button community-apply-button" onClick={() => onApply(campaign)}><Send size={14} /> Apply to Campaign</button> : isPending ? <span className="community-pending-label"><Clock3 size={14} /> Application Pending</span> : campaign.status === "Accepted" ? <Link className="community-campaign-link" href="/community-owner/accepted-campaigns">View campaign <ArrowUpRight size={14} /></Link> : <span className="community-completed-label"><CheckCircle2 size={14} /> Paid</span>}</div>
+    <div className="community-campaign-card-footer"><span><b>{displayMoney(campaign.earnings, 0)}</b><small>earnings offered</small></span>{campaign.clicks && <span><b>{campaign.clicks}</b><small>tracked results</small></span>}{isMatching && onApply ? <button className="accept-button community-apply-button" onClick={() => onApply(campaign)}><Send size={14} /> Apply to Campaign</button> : isPending ? <span className="community-pending-label"><Clock3 size={14} /> Application Pending</span> : campaign.status === "Accepted" ? <Link className="community-campaign-link" href="/community-owner/accepted-campaigns">View campaign <ArrowUpRight size={14} /></Link> : <span className="community-completed-label"><CheckCircle2 size={14} /> Paid</span>}</div>
   </article>;
 }
 

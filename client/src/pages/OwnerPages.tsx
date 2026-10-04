@@ -37,7 +37,7 @@ import {
 import {
   getCampaignFinancials,
   getPlacementClickStats,
-  formatMoney,
+  
   readApplications,
   readCampaignActivities,
   readCampaigns,
@@ -717,7 +717,7 @@ export function CommunityDetail() {
                 <div>
                   <span className="campaign-brand">Urban Sneakers Launch</span>
                   <p>
-                    {community.platform} · Kenyan shoppers · KSh 1.50 /
+                    {community.platform} · Kenyan shoppers · {format(1.5)} /
                     qualified click · 48 hours
                   </p>
                   <small>
@@ -799,6 +799,8 @@ type PerformanceRow = {
 };
 
 export function Performance() {
+
+    const { format } = useCurrency();
   const [applications, setApplications] = useState(readApplications);
   const [backendRows, setBackendRows] = useState<PerformanceRow[] | null>(null);
   const { items: communityItems } = useCommunities();
@@ -835,8 +837,8 @@ export function Performance() {
                 community: community?.name ?? "Community",
                 campaign: campaign?.name ?? "Campaign",
                 financials: getCampaignFinancials(
-                  `KSh ${campaign?.cpc ?? application.cpc}`,
-                  `KSh ${campaign?.budget ?? 0}`,
+                  String(campaign?.cpc ?? application.cpc),
+                  String(campaign?.budget ?? 0),
                   qualified,
                 ),
               };
@@ -874,7 +876,7 @@ export function Performance() {
       const stats = getPlacementClickStats(application.id);
       const financials = campaign
         ? getCampaignFinancials(campaign.cpc, campaign.budget, stats.qualified)
-        : getCampaignFinancials(application.cpc, "KSh 0", stats.qualified);
+        : getCampaignFinancials(application.cpc, "0", stats.qualified);
 
       return {
         id: application.id,
@@ -917,12 +919,11 @@ export function Performance() {
           </div>
           <div>
             <strong>
-              {formatMoney(
+              {format(
                 rows.reduce(
                   (sum, row) => sum + row.financials.communityOwnerEarnings,
                   0,
                 ),
-                2,
               )}
             </strong>
             <span>community earnings</span>
@@ -954,12 +955,12 @@ export function Performance() {
                     <small>
                       {row.financials.qualifiedClicks.toLocaleString()}{" "}
                       qualified clicks ·{" "}
-                      {formatMoney(row.financials.communityOwnerCpc, 2)} payout
+                      {format(row.financials.communityOwnerCpc)} payout
                       / click
                     </small>
                   </span>
                   <strong>
-                    {formatMoney(row.financials.communityOwnerEarnings, 2)}
+                    {format(row.financials.communityOwnerEarnings)}
                   </strong>
                 </div>
               ))

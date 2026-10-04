@@ -1,3 +1,5 @@
+
+import { formatCurrency } from "@/lib/currency";
 export type CampaignStatus = "Draft" | "Published" | "Active" | "Paused" | "Completed" | "Budget Exhausted";
 export type ApplicationStatus = "Pending" | "Accepted" | "Rejected";
 export type PlacementStatus = "Ready to Post" | "Active" | "Completed";
@@ -14,7 +16,8 @@ export type CampaignActivity = { id: string; campaignId?: string; campaignName?:
 
 export const PLATFORM_FEE_RATE = 0.25;
 export function moneyToNumber(value: string) { return Number(value.replace(/[^0-9.]/g, "")) || 0; }
-export function formatMoney(value: number, decimals = 0) { return `KSh ${value.toLocaleString("en-KE", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`; }
+export function formatMoney(value: number, decimals = 0) { return formatCurrency(value, decimals); }
+export function displayMoney(value: string, decimals?: number) { return value.replace(/(?:[A-Za-z]{2,4}\s?)?\d[\d,]*(?:\.\d+)?/, (token) => formatCurrency(moneyToNumber(token), decimals ?? (token.includes(".") ? token.split(".")[1].length : 0))); }
 export function getCpcBreakdown(cpc: string) { const advertiserCpc = moneyToNumber(cpc); const platformFee = advertiserCpc * PLATFORM_FEE_RATE; return { advertiserCpc, communityOwnerCpc: Math.max(advertiserCpc - platformFee, 0), platformFee }; }
 export function getCampaignFinancials(cpc: string, budget: string, qualifiedClicks: number) { const breakdown = getCpcBreakdown(cpc); const maximumQualifiedClicks = breakdown.advertiserCpc > 0 ? Math.floor(moneyToNumber(budget) / breakdown.advertiserCpc) : 0; const cappedClicks = Math.min(Math.max(qualifiedClicks, 0), maximumQualifiedClicks); const advertiserSpend = cappedClicks * breakdown.advertiserCpc; return { ...breakdown, maximumQualifiedClicks, qualifiedClicks: cappedClicks, advertiserSpend, communityOwnerEarnings: cappedClicks * breakdown.communityOwnerCpc, platformRevenue: cappedClicks * breakdown.platformFee, remainingBudget: Math.max(moneyToNumber(budget) - advertiserSpend, 0) }; }
 

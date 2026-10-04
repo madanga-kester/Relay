@@ -121,10 +121,8 @@ export async function relayRequest<T>(path: string, options: RequestOptions = {}
         detail?: string;
         errors?: Record<string, string[]>;
       };
-      detail =
-        body.detail ??
-        body.title ??
-        Object.values(body.errors ?? {}).flat().join(" ");
+      const reasons = Object.values(body.errors ?? {}).flat().join(" ");
+      detail = reasons || body.detail || body.title || "";
     } catch {
       /* Use the status fallback below. */
     }
@@ -189,6 +187,7 @@ export async function loginRelayAccount(email: string, password: string) {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+  csrfToken = null;
   window.dispatchEvent(new Event("relay:session-changed"));
   return user;
 }
@@ -635,6 +634,16 @@ export async function listRelayApplications(page = 1, pageSize = 100) {
       cpc: number;
       status: string;
       placement?: { id: string; trackingId: string; status: string };
+      community?: {
+        name: string;
+        platform: string;
+        members: number;
+        category: string;
+        location: string;
+        verificationStatus: string;
+        audienceDescription?: string | null;
+        communityLink?: string | null;
+      } | null;
     }>
   >(`/applications/mine?page=${page}&pageSize=${pageSize}`);
 }

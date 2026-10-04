@@ -69,6 +69,3 @@ export function formatMembers(members: number) {
   return members >= 1000 ? `${(members / 1000).toFixed(1)}k` : String(members);
 }
 
-export function formatKsh(amount: number) {
-  return `KSh ${amount.toLocaleString("en-KE")}`;
-}
