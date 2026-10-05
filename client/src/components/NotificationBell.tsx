@@ -245,7 +245,9 @@ export default function NotificationBell() {
 
                         <footer
               style={{
-                padding: "10px 14px",
+                display: "flex",
+                justifyContent: "center",
+                padding: "8px 14px",
                 borderTop: `1px solid ${palette.border}`,
               }}
             >
@@ -253,14 +255,12 @@ export default function NotificationBell() {
                 href="/notifications"
                 onClick={closeSheet}
                 style={{
-                  display: "block",
-                  padding: "10px 12px",
-                  borderRadius: 10,
+                  padding: "4px 14px",
+                  borderRadius: 999,
                   background: palette.tile,
                   color: palette.accent,
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: 700,
-                  textAlign: "center",
                   textDecoration: "none",
                 }}
               >
