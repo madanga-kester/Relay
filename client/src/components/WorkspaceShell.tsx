@@ -17,6 +17,9 @@ import {
   UsersRound,
 } from "lucide-react";
 import ProfileMenu from "@/components/ProfileMenu";
+import NotificationBell from "@/components/NotificationBell";
+import GlobalSearch from "@/components/GlobalSearch";
+import type { SearchItem } from "@/components/GlobalSearch";
 import { useCurrency } from "@/lib/currency";
 import { Link, useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -29,6 +32,7 @@ const navItems = [
   { href: "/performance", label: "Performance", icon: BarChart3 },
   { href: "/earnings", label: "Earnings", icon: DollarSign },
   { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -40,6 +44,7 @@ const communityOwnerNavItems = [
   { href: "/performance", label: "Performance", icon: BarChart3 },
   { href: "/earnings", label: "Earnings", icon: DollarSign },
   { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -52,6 +57,7 @@ const campaignOwnerNavItems = [
   { href: "/campaign-owner/performance", label: "Performance", icon: BarChart3 },
   { href: "/campaign-owner/billing", label: "Billing", icon: CreditCard },
   { href: "/campaign-owner/activity", label: "Activity", icon: Activity },
+  { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/campaign-owner/settings", label: "Settings", icon: Settings },
 ];
 
@@ -81,6 +87,41 @@ export function RouteProgress() {
     />
   );
 }
+const liveDateFormatter = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+
+const liveTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true,
+});
+
+export function LiveDateTime() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    let timer = 0;
+    const schedule = () => {
+      const current = new Date();
+      timer = window.setTimeout(() => {
+        setNow(new Date());
+        schedule();
+      }, 60000 - (current.getSeconds() * 1000 + current.getMilliseconds()));
+    };
+    schedule();
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <>
+      {liveDateFormatter.format(now)} | {liveTimeFormatter.format(now)}
+    </>
+  );
+}
 
 const campaignOwnerBreadcrumbLabels: Record<string, string> = {
   campaigns: "My Campaigns",
@@ -92,6 +133,46 @@ const campaignOwnerBreadcrumbLabels: Record<string, string> = {
   activity: "Activity",
   settings: "Settings",
 };
+
+const sharedBreadcrumbLabels: Record<string, string> = {
+  "/performance": "Performance",
+  "/earnings": "Earnings",
+  "/activity": "Activity",
+  "/settings": "Settings",
+  "/profile": "Profile",
+  "/notifications": "Notifications",
+};
+
+const TRAIL_KEY = "relay-breadcrumb-trail";
+const TRAIL_MAX = 6;
+
+type TrailItem = { href: string; label: string };
+
+function readTrail(): TrailItem[] {
+  try {
+    const raw = sessionStorage.getItem(TRAIL_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        item && typeof item.href === "string" && typeof item.label === "string"
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeTrail(trail: TrailItem[]) {
+  try {
+    sessionStorage.setItem(TRAIL_KEY, JSON.stringify(trail));
+  } catch {
+    /* storage unavailable, trail still works in memory */
+  }
+}
+
+function addToTrail(trail: TrailItem[], item: TrailItem): TrailItem[] {
+  return [...trail.filter((entry) => entry.href !== item.href), item].slice(-TRAIL_MAX);
+}
 
 function Breadcrumbs({ location }: { location: string }) {
   const crumbs =
@@ -144,25 +225,79 @@ function Breadcrumbs({ location }: { location: string }) {
       ? [{ label: "My Communities" }]
       : location === "/"
       ? [{ label: "Overview" }]
+
+            : sharedBreadcrumbLabels[location]
+      ? [{ label: "Workspace" }, { label: sharedBreadcrumbLabels[location] }]
       : [{ label: "Workspace" }, { label: location.slice(1).replaceAll("/", " · ") }];
+
+  const currentItem: TrailItem = {
+    href: location,
+    label: crumbs[crumbs.length - 1].label,
+  };
+  const [trail, setTrail] = useState<TrailItem[]>(() =>
+    addToTrail(readTrail(), currentItem)
+  );
+
+  useEffect(() => {
+    const next = addToTrail(readTrail(), currentItem);
+    writeTrail(next);
+    setTrail(next);
+  }, [currentItem.href, currentItem.label]);
+
+  const clearTrail = () => {
+    const only = [currentItem];
+    writeTrail(only);
+    setTrail(only);
+  };
 
   return (
     <div className="breadcrumb-bar" aria-label="Breadcrumb">
-      {crumbs.map((crumb, index) => (
+      {trail.map((item, index) => (
         <span
-          key={`${crumb.label}-${index}`}
-          className={index === crumbs.length - 1 ? "breadcrumb-current" : ""}
+          key={item.href}
+          className={index === trail.length - 1 ? "breadcrumb-current" : ""}
         >
-          {index > 0 && <span className="breadcrumb-separator">/</span>}
-          {crumb.href ? (
-            <Link className="breadcrumb-link" href={crumb.href}>
-              {crumb.label}
-            </Link>
+          {index > 0 && (
+            <span
+              className="breadcrumb-separator"
+              aria-hidden="true"
+              style={{
+                display: "inline-block",
+                width: 4,
+                height: 4,
+                borderRadius: "50%",
+                backgroundColor: "currentColor",
+                opacity: 0.4,
+                verticalAlign: "middle",
+              }}
+            />
+          )}
+          {index === trail.length - 1 ? (
+            item.label
           ) : (
-            crumb.label
+            <Link className="breadcrumb-link" href={item.href}>
+              {item.label}
+            </Link>
           )}
         </span>
       ))}
+      {trail.length >= TRAIL_MAX && (
+        <button
+          type="button"
+          className="breadcrumb-link"
+          onClick={clearTrail}
+          style={{
+            marginLeft: "auto",
+            background: "none",
+            border: "none",
+            padding: 0,
+            font: "inherit",
+            cursor: "pointer",
+          }}
+        >
+          Clear
+        </button>
+      )}
     </div>
   );
 }
@@ -170,7 +305,7 @@ function Breadcrumbs({ location }: { location: string }) {
 export default function WorkspaceShell({
   active = "Overview",
   children,
-  dateLabel = "Tuesday, June 17, 2025",
+  dateLabel,
   workspaceLabel: workspaceLabelProp = "Community Owner",
   workspaceMode: workspaceModeProp = "legacy",
 }: WorkspaceShellProps) {
@@ -191,29 +326,64 @@ export default function WorkspaceShell({
       ? "Community Owner"
       : workspaceLabelProp;
 
+        const homeHref =
+    workspaceMode === "campaign-owner"
+      ? "/campaign-owner"
+      : workspaceMode === "community-owner"
+      ? "/community-owner"
+      : "/";
+
   const [campaignsOpen, setCampaignsOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem("ownerboard-sidebar-collapsed") === "true"
-  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("ownerboard-sidebar-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+    const sidebarIconOnly = sidebarCollapsed && !sidebarHovered;
   const { currency } = useCurrency();
 
+  
+  const activeNavItems =
+    workspaceMode === "community-owner"
+      ? communityOwnerNavItems
+      : workspaceMode === "campaign-owner"
+      ? campaignOwnerNavItems
+      : navItems;
+  const searchItems: SearchItem[] = [
+    ...activeNavItems.map(({ href, label }) => ({ href, label, group: "Pages" })),
+    { href: "/profile", label: "Profile settings", group: "Account" },
+    { href: "/billing/upgrade", label: "Upgrade plan", group: "Account" },
+  ];
   const toggleSidebar = () =>
     setSidebarCollapsed((collapsed) => {
       const next = !collapsed;
-      localStorage.setItem("ownerboard-sidebar-collapsed", String(next));
+      try {
+        localStorage.setItem("ownerboard-sidebar-collapsed", String(next));
+      } catch {
+        /* storage unavailable, state still updates in memory */
+      }
       return next;
     });
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? "app-shell-sidebar-collapsed" : ""}`}>
+    <div
+      className={`app-shell ${sidebarCollapsed ? "app-shell-sidebar-collapsed" : ""} ${
+        sidebarCollapsed && sidebarHovered ? "app-shell-sidebar-peek" : ""
+      }`}
+    >
       <RouteProgress />
       <aside
         className={`sidebar ${mobileMenuOpen ? "sidebar-mobile-open" : ""}`}
         aria-label="Main navigation"
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
       >
         <div className="sidebar-brand-row">
-          <Link className="wordmark" href="/" aria-label="relay home">
+          <Link className="wordmark" href={homeHref} aria-label="relay home">
             <span className="wordmark-spark" aria-hidden="true">
               <i />
               <i />
@@ -266,6 +436,9 @@ export default function WorkspaceShell({
                     emphasis ? "nav-item-emphasis" : ""
                   }`}
                   href={href}
+                  aria-label={label}
+                  aria-current={active === label ? "page" : undefined}
+                  title={sidebarIconOnly ? label : undefined}
                 >
                   <Icon size={17} />
                   <span>{label}</span>
@@ -280,6 +453,9 @@ export default function WorkspaceShell({
                     emphasis ? "nav-item-emphasis" : ""
                   }`}
                   href={href}
+                  aria-label={label}
+                  aria-current={active === label ? "page" : undefined}
+                  title={sidebarIconOnly ? label : undefined}
                 >
                   <Icon size={17} />
                   <span>{label}</span>
@@ -295,6 +471,9 @@ export default function WorkspaceShell({
                           active === label ? "nav-item-active" : ""
                         } ${emphasis ? "nav-item-emphasis" : ""}`}
                         href={href}
+                        aria-label={label}
+                        aria-current={active === label ? "page" : undefined}
+                        title={sidebarIconOnly ? label : undefined}
                       >
                         <Icon size={17} />
                         <span>{label}</span>
@@ -337,6 +516,9 @@ export default function WorkspaceShell({
                       emphasis ? "nav-item-emphasis" : ""
                     }`}
                     href={href}
+                    aria-label={label}
+                    aria-current={active === label ? "page" : undefined}
+                    title={sidebarIconOnly ? label : undefined}
                   >
                     <Icon size={17} />
                     <span>{label}</span>
@@ -359,12 +541,17 @@ export default function WorkspaceShell({
               </p>
             </div>
           </div>
-          <ProfileMenu variant="sidebar" />
+          <ProfileMenu
+            variant="sidebar"
+            sidebarCollapsed={sidebarCollapsed && !sidebarHovered}
+          />
         </div>
       </aside>
       <button
         className="sidebar-collapse-button"
         onClick={toggleSidebar}
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
         aria-label={sidebarCollapsed ? "Expand sidebar" : "Minimize sidebar"}
         title={sidebarCollapsed ? "Expand sidebar" : "Minimize sidebar"}
       >
@@ -389,13 +576,11 @@ export default function WorkspaceShell({
           </button>
           <div className="topbar-context">
             <span className="topbar-kicker">{workspaceLabel} workspace</span>
-            <span className="topbar-date">{dateLabel}</span>
+            <span className="topbar-date">{dateLabel ?? <LiveDateTime />}</span>
           </div>
           <div className="topbar-actions" style={{ marginLeft: "auto" }}>
-            <button className="icon-button" aria-label="View notifications">
-              <Bell size={18} />
-              <span className="notification-dot" />
-            </button>
+                        <GlobalSearch items={searchItems} />
+            <NotificationBell />
             <ProfileMenu />
           </div>
         </header>
@@ -457,11 +642,18 @@ export default function WorkspaceShell({
                 <span>Applications</span>
               </Link>
               <Link
-                className={active === "Active Placements" ? "mobile-nav-active" : ""}
-                href="/campaign-owner/placements"
+                className={active === "Performance" ? "mobile-nav-active" : ""}
+                href="/campaign-owner/performance"
               >
-                <CheckCircle2 size={18} />
-                <span>Placements</span>
+                <BarChart3 size={18} />
+                <span>Performance</span>
+              </Link>
+              <Link
+                className={active === "Billing" ? "mobile-nav-active" : ""}
+                href="/campaign-owner/billing"
+              >
+                <CreditCard size={18} />
+                <span>Billing</span>
               </Link>
             </>
           ) : (

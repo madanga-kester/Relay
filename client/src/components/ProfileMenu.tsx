@@ -1,20 +1,53 @@
-import { ChevronDown, LogOut, Moon, Settings, Sun, X } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, CreditCard, LogOut, Moon, Settings, Sun, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "../contexts/ThemeContext";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useRelaySession } from "@/contexts/RelaySessionContext";
 import { logoutRelayAccount, relayBackendEnabled } from "@/lib/relayApi";
 
-type ProfileMenuProps = { variant?: "topbar" | "sidebar" };
+type ProfileMenuProps = {
+  variant?: "topbar" | "sidebar";
+  sidebarCollapsed?: boolean;
+};
 
-export default function ProfileMenu({ variant = "topbar" }: ProfileMenuProps) {
+export default function ProfileMenu({
+  variant = "topbar",
+  sidebarCollapsed = false,
+}: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const [, setLocation] = useLocation();
   const sidebar = variant === "sidebar";
+  const wrapRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!logoutOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLogoutOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [logoutOpen]);
   const session = useRelaySession();
   const fullName = session.user?.displayName ?? "Ava Sinclair";
   const firstName = fullName.split(" ")[0];
@@ -31,7 +64,7 @@ export default function ProfileMenu({ variant = "topbar" }: ProfileMenuProps) {
       : session.user?.role === "CommunityOwner"
       ? "Community Owner"
       : session.user?.role ?? "Community Owner";
-
+  const billingHref = "/billing/upgrade";
   const confirmLogout = async () => {
     if (relayBackendEnabled()) {
       try {
@@ -43,6 +76,7 @@ export default function ProfileMenu({ variant = "topbar" }: ProfileMenuProps) {
     sessionStorage.removeItem("relay_signup_role");
     sessionStorage.removeItem("relay_signup_email");
     sessionStorage.removeItem("relay_signup_name");
+        sessionStorage.removeItem("relay-breadcrumb-trail");
     setLogoutOpen(false);
     setOpen(false);
     setLocation("/");
@@ -73,10 +107,7 @@ export default function ProfileMenu({ variant = "topbar" }: ProfileMenuProps) {
               <LogOut size={18} />
             </span>
             <h2 id="logout-title">Log out of relay?</h2>
-            <p>
-              You'll return to the public marketplace landing page. This frontend
-              demo will not save an authenticated session.
-            </p>
+            <p>You'll return to the public marketplace landing page.</p>
             <div className="logout-dialog-actions">
               <button
                 className="logout-cancel"
@@ -95,7 +126,10 @@ export default function ProfileMenu({ variant = "topbar" }: ProfileMenuProps) {
     : null;
 
   return (
-    <div className={`profile-menu-wrap ${sidebar ? "profile-menu-sidebar" : ""}`}>
+    <div
+      ref={wrapRef}
+      className={`profile-menu-wrap ${sidebar ? "profile-menu-sidebar" : ""}`}
+    >
       <button
         className={sidebar ? "sidebar-profile-trigger" : "topbar-profile"}
         onClick={() => setOpen((current) => !current)}
@@ -132,18 +166,32 @@ export default function ProfileMenu({ variant = "topbar" }: ProfileMenuProps) {
           }
         >
           {sidebar ? (
-            <button
-              className="profile-dropdown-item profile-dropdown-logout"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                setLogoutOpen(true);
-              }}
-              style={theme === "dark" ? { color: "#ffffff" } : undefined}
-            >
-              <LogOut size={16} />
-              <span>Log out</span>
-            </button>
+            <>
+              <button
+                className="profile-dropdown-item"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  window.open(billingHref, "_blank", "noopener,noreferrer");
+                }}
+                style={theme === "dark" ? { color: "#ffffff" } : undefined}
+              >
+                <CreditCard size={16} />
+                <span>Billing</span>
+              </button>
+              <button
+                className="profile-dropdown-item profile-dropdown-logout"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  setLogoutOpen(true);
+                }}
+                style={theme === "dark" ? { color: "#ffffff" } : undefined}
+              >
+                <LogOut size={16} />
+                <span>Log out</span>
+              </button>
+            </>
           ) : (
             <>
               <div className="profile-dropdown-heading">
@@ -161,7 +209,7 @@ export default function ProfileMenu({ variant = "topbar" }: ProfileMenuProps) {
                 className="profile-dropdown-divider"
                 style={theme === "dark" ? { backgroundColor: "#333333" } : undefined}
               />
-              <a
+              <Link
                 href="/profile"
                 className="profile-dropdown-item"
                 role="menuitem"
@@ -170,7 +218,7 @@ export default function ProfileMenu({ variant = "topbar" }: ProfileMenuProps) {
               >
                 <Settings size={16} />
                 <span>Profile settings</span>
-              </a>
+              </Link>
               <button
                 className="profile-dropdown-item"
                 role="menuitem"

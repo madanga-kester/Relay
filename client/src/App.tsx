@@ -13,6 +13,7 @@ import Home from "./pages/Home";
 import { Activity, Communities, CommunityDetail, Earnings, Performance, Settings } from "./pages/OwnerPages";
 import AddCommunity from "./pages/AddCommunity";
 import Profile from "./pages/Profile";
+import Notifications from "./pages/Notifications";
 import CommunityOwnerDashboard from "./pages/CommunityOwner/CommunityOwnerDashboard";
 import CommunityOwnerSectionPlaceholder from "./pages/CommunityOwner/CommunityOwnerSectionPlaceholder";
 import CommunityOwnerAcceptedCampaigns from "./pages/CommunityOwner/CommunityOwnerAcceptedCampaigns";
@@ -39,6 +40,7 @@ import PasswordResetSuccessPage from "./pages/PasswordResetSuccessPage";
 import AdvertiserOnboardingPage from "./pages/AdvertiserOnboardingPage";
 import CommunityOwnerOnboardingPage from "./pages/CommunityOwnerOnboardingPage";
 import CampaignOwnerBilling from "./pages/CampaignOwner/CampaignOwnerBilling";
+import Upgrade from "./pages/Billing/Upgrade";
 import CampaignOwnerActivity from "./pages/CampaignOwner/CampaignOwnerActivity";
 import CampaignOwnerSettings from "./pages/CampaignOwner/CampaignOwnerSettings";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
@@ -119,6 +121,8 @@ function Router() {
       <Route path={"/activity"} component={Activity} />
       <Route path={"/settings"} component={Settings} />
       <Route path={"/profile"} component={Profile} />
+            <Route path={"/notifications"} component={Notifications} />
+            <Route path={"/billing/upgrade"} component={Upgrade} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

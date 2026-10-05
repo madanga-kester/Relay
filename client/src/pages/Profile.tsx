@@ -1,20 +1,21 @@
-import { Activity, ArrowLeft, BarChart3, Check, Clipboard, Menu, Moon, Settings, Sparkles, Sun, UsersRound, WalletCards } from "lucide-react";
-import ProfileMenu from "@/components/ProfileMenu";
+import { ArrowLeft, Check, Moon, Settings, Sun } from "lucide-react";
+import WorkspaceShell from "@/components/WorkspaceShell";
+import { useRelaySession } from "@/contexts/RelaySessionContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { RouteProgress } from "@/components/WorkspaceShell";
 import { Link } from "wouter";
 
 export default function Profile() {
   const { theme, toggleTheme } = useTheme();
+  const session = useRelaySession();
+  const role = session.status === "authenticated" ? session.user?.role : undefined;
+  const homeHref =
+    role === "Advertiser"
+      ? "/campaign-owner"
+      : role === "CommunityOwner"
+      ? "/community-owner"
+      : "/";
   return (
-    <div className="app-shell">
-      <RouteProgress />
-      <aside className="sidebar" aria-label="Main navigation">
-        <Link className="wordmark" href="/" aria-label="relay home"><span className="wordmark-spark" aria-hidden="true"><i /><i /><i /></span><span>relay</span></Link>
-        <nav className="sidebar-nav"><span className="nav-section-label">Workspace</span><Link className="nav-item" href="/"><BarChart3 size={17} /><span>Overview</span></Link><Link className="nav-item" href="/campaigns"><Clipboard size={17} /><span>Campaigns</span></Link><Link className="nav-item nav-item-emphasis" href="/communities"><UsersRound size={17} /><span>My Communities</span></Link><Link className="nav-item" href="/performance"><BarChart3 size={17} /><span>Performance</span></Link><Link className="nav-item" href="/earnings"><WalletCards size={17} /><span>Earnings</span></Link><Link className="nav-item" href="/activity"><Activity size={17} /><span>Activity</span></Link><Link className="nav-item" href="/settings"><Settings size={17} /><span>Settings</span></Link></nav>
-        <div className="sidebar-footer"><div className="sidebar-tip"><span className="tip-icon"><Sparkles size={15} /></span><div><strong>Keep your rhythm</strong><p>One good post can keep earning all week.</p></div></div><div className="profile-row"><span className="nav-avatar">AS</span><div><strong>Ava Sinclair</strong><span>@avaafterhours</span></div></div></div>
-      </aside>
-      <main className="dashboard"><header className="topbar"><button className="mobile-menu-button" aria-label="Open navigation"><Menu size={20} /></button><div className="topbar-context"><span className="topbar-kicker">Community owner workspace</span><span className="topbar-date">Account preferences</span></div><div className="topbar-actions"><ProfileMenu /></div></header><div className="dashboard-body"><section className="route-page-heading"><div><span className="section-kicker"><span className="section-kicker-line section-kicker-line-lilac" /> Account</span><h1>Community profile</h1><p>Keep your community details and workspace preferences close at hand.</p></div><a className="hero-link route-back-link route-back-link-dark" href="/"><ArrowLeft size={15} /> Back to overview</a></section><section className="profile-page-grid"><article className="profile-settings-card"><div className="profile-large-avatar">AS</div><div><span className="insight-kicker">Community owner</span><h2>Ava Sinclair</h2><p>@avaafterhours · 18.4k community members</p></div><button className="profile-edit-button">Edit profile</button></article><article className="preference-card"><div className="preference-card-heading"><span className="preference-icon"><Settings size={17} /></span><div><h2>Workspace preferences</h2><p>Make Relay feel right for your daily workflow.</p></div></div><button className="preference-row" onClick={toggleTheme}><span className="preference-row-icon">{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</span><span><strong>{theme === "dark" ? "Light theme" : "Dark theme"}</strong><small>Use a {theme === "dark" ? "brighter" : "darker"} workspace when you need it.</small></span><span className={`theme-switch ${theme === "dark" ? "theme-switch-on" : ""}`}><span /></span></button><div className="preference-row preference-row-static"><span className="preference-row-icon"><Check size={16} /></span><span><strong>Weekly payout digest</strong><small>Sent every Monday at 9:00 AM.</small></span><span className="preference-check"><Check size={13} /></span></div></article></section></div><nav className="mobile-bottom-nav" aria-label="Mobile navigation"><Link href="/"><BarChart3 size={18} /><span>Overview</span></Link><Link href="/campaigns"><Clipboard size={18} /><span>Campaigns</span></Link><Link href="/communities"><UsersRound size={18} /><span>Communities</span></Link><Link className="mobile-nav-active" href="/settings"><Settings size={18} /><span>Settings</span></Link></nav></main>
-    </div>
+    <WorkspaceShell active="Profile" dateLabel="Account preferences">
+      <div className="dashboard-body"><section className="route-page-heading"><div><span className="section-kicker"><span className="section-kicker-line section-kicker-line-lilac" /> Account</span><h1>Community profile</h1><p>Keep your community details and workspace preferences close at hand.</p></div><Link className="hero-link route-back-link route-back-link-dark" href={homeHref}><ArrowLeft size={15} /> Back to overview</Link></section><section className="profile-page-grid"><article className="profile-settings-card"><div className="profile-large-avatar">AS</div><div><span className="insight-kicker">Community owner</span><h2>Ava Sinclair</h2><p>@avaafterhours · 18.4k community members</p></div><button className="profile-edit-button">Edit profile</button></article><article className="preference-card"><div className="preference-card-heading"><span className="preference-icon"><Settings size={17} /></span><div><h2>Workspace preferences</h2><p>Make Relay feel right for your daily workflow.</p></div></div><button className="preference-row" onClick={toggleTheme}><span className="preference-row-icon">{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</span><span><strong>{theme === "dark" ? "Light theme" : "Dark theme"}</strong><small>Use a {theme === "dark" ? "brighter" : "darker"} workspace when you need it.</small></span><span className={`theme-switch ${theme === "dark" ? "theme-switch-on" : ""}`}><span /></span></button><div className="preference-row preference-row-static"><span className="preference-row-icon"><Check size={16} /></span><span><strong>Weekly payout digest</strong><small>Sent every Monday at 9:00 AM.</small></span><span className="preference-check"><Check size={13} /></span></div></article></section></div>    </WorkspaceShell>
   );
 }
