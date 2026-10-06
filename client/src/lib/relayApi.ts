@@ -644,6 +644,18 @@ export async function listRelayApplications(page = 1, pageSize = 100) {
         audienceDescription?: string | null;
         communityLink?: string | null;
       } | null;
+      campaign?: {
+        name: string;
+        advertiserName: string;
+        advertisement: string;
+        destinationUrl: string;
+        durationDays: number;
+        startDate: string;
+        endDate: string;
+        cpc: number;
+        budget: number;
+        status: string;
+      } | null;
     }>
   >(`/applications/mine?page=${page}&pageSize=${pageSize}`);
 }
@@ -659,4 +671,17 @@ export async function listMyRelayPlacements(page = 1, pageSize = 100) {
       status: string;
     }>
   >(`/placements/mine?page=${page}&pageSize=${pageSize}`);
+}
+
+export type RelayCampaignPerformance = {
+  campaignId: string;
+  qualifiedClicks: number;
+  rejectedClicks: number;
+  advertiserSpend: number;
+  communityOwnerEarnings: number;
+  platformFees: number;
+};
+
+export async function getRelayCampaignPerformance() {
+  return relayRequest<RelayCampaignPerformance[]>("/campaigns/performance");
 }

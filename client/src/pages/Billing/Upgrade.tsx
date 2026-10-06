@@ -12,8 +12,11 @@ import {
   Info,
   LockKeyhole,
   Mail,
+  Menu,
+  Moon,
   ShieldCheck,
   Sparkles,
+  Sun,
   UsersRound,
   X,
 } from "lucide-react";
@@ -114,14 +117,16 @@ const sharedTransition = "all 180ms ease";
 
 export default function Upgrade() {
   const session = useRelaySession();
-  const { theme } = useTheme();
-  const dark = theme === "dark";
+  const { theme, toggleTheme } = useTheme();
+  const [localDark, setLocalDark] = useState(false);
+  const dark = toggleTheme ? theme === "dark" : localDark;
 
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<"plans" | "comparison" | "support" | "faq">("plans");
+  const [activeSection, setActiveSection] = useState<"plans" | "comparison" | "guide" | "support" | "faq">("plans");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [notice, setNotice] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const role = session.user?.role;
   const homeHref =
@@ -172,19 +177,48 @@ export default function Upgrade() {
   };
 
   return (
-    <div className="upgrade-page" style={styles.page(palette)}>
+    <div className="upgrade-page upgrade-animate" style={styles.page(palette)}>
       <style>{responsiveCss}</style>
       <div className="upgrade-shell" style={styles.shell}>
-        <nav style={styles.topNav(palette)} aria-label="Billing navigation">
+        <nav className="upgrade-top-nav" style={styles.topNav(palette)} aria-label="Billing navigation">
+          <div style={styles.topNavLeft}>
+          <button className="upgrade-mobile-menu-button" type="button" onClick={() => setMobileMenuOpen(true)} style={styles.mobileMenuButton(palette)} aria-label="Open billing navigation">
+            <Menu size={18} />
+          </button>
           <Link href={homeHref} style={styles.backLink(palette)}>
             <ArrowLeft size={16} aria-hidden="true" />
             <span>Back to dashboard</span>
           </Link>
-          <div style={styles.secureLabel(palette)}>
+          </div>
+          <div className="upgrade-secure-label" style={styles.secureLabel(palette)}>
             <ShieldCheck size={15} aria-hidden="true" />
             <span>Secure account settings</span>
+            <button className="upgrade-theme-button" type="button" onClick={() => { setLocalDark((value) => !value); toggleTheme?.(); }} style={styles.themeButton(palette)} aria-label={`Switch to ${dark ? "light" : "dark"} theme`}>
+              {dark ? <Sun size={15} /> : <Moon size={15} />}
+              <span className="theme-button-label">{dark ? "Light" : "Dark"}</span>
+            </button>
           </div>
         </nav>
+
+        {mobileMenuOpen && <>
+          <button type="button" className="upgrade-drawer-backdrop" onClick={() => setMobileMenuOpen(false)} aria-label="Close billing navigation" />
+          <aside className="upgrade-mobile-drawer" style={styles.mobileDrawer(palette)} aria-label="Mobile billing navigation">
+            <div style={styles.drawerHeader(palette)}>
+              <strong style={{ color: palette.text, fontSize: 15 }}>Account billing</strong>
+              <button type="button" onClick={() => setMobileMenuOpen(false)} style={styles.iconButton(palette)} aria-label="Close menu"><X size={18} /></button>
+            </div>
+            <span style={styles.sidebarLabel(palette)}>This page</span>
+            {([
+              ["plans", "Choose a plan", Sparkles],
+              ["comparison", "Compare features", BarChart3],
+              ["guide", "Upgrade guide", BadgeCheck],
+              ["support", "Support & guidance", HelpCircle],
+              ["faq", "FAQs", Info],
+            ] as const).map(([section, label, Icon]) => (
+              <button key={section} type="button" onClick={() => { setActiveSection(section); setMobileMenuOpen(false); }} style={styles.sidebarLink(palette, activeSection === section)}><Icon size={16} /> {label}</button>
+            ))}
+          </aside>
+        </>}
 
         <div className="upgrade-main-layout" style={styles.mainLayout}>
           <aside style={styles.sidebar(palette)} aria-label="Billing sidebar">
@@ -200,6 +234,7 @@ export default function Upgrade() {
               <span style={styles.sidebarLabel(palette)}>This page</span>
               <button type="button" onClick={() => setActiveSection("plans")} style={styles.sidebarLink(palette, activeSection === "plans")}><Sparkles size={15} /> Choose a plan</button>
               <button type="button" onClick={() => setActiveSection("comparison")} style={styles.sidebarLink(palette, activeSection === "comparison")}><BarChart3 size={15} /> Compare features</button>
+              <button type="button" onClick={() => setActiveSection("guide")} style={styles.sidebarLink(palette, activeSection === "guide")}><BadgeCheck size={15} /> Upgrade guide</button>
               <button type="button" onClick={() => setActiveSection("support")} style={styles.sidebarLink(palette, activeSection === "support")}><HelpCircle size={15} /> Support & guidance</button>
               <button type="button" onClick={() => setActiveSection("faq")} style={styles.sidebarLink(palette, activeSection === "faq")}><Info size={15} /> FAQs</button>
             </div>
@@ -310,7 +345,7 @@ export default function Upgrade() {
         </section>
         </>}
 
-        {activeSection === "comparison" && <section id="comparison" style={styles.panelSection(palette)}>
+        {activeSection === "comparison" && <section id="comparison" className="upgrade-panel-section" style={styles.panelSection(palette)}>
           <div style={styles.panelIntro}>
             <span style={styles.sectionKicker(palette)}>Side-by-side view</span>
             <h1 style={styles.panelTitle(palette)}>Compare features at a glance.</h1>
@@ -319,7 +354,27 @@ export default function Upgrade() {
           <ComparisonTable palette={palette} />
         </section>}
 
-        {activeSection === "support" && <section id="support" className="upgrade-support-grid" style={styles.panelSection(palette)}>
+        {activeSection === "guide" && <section id="guide" className="upgrade-panel-section" style={styles.panelSection(palette)}>
+          <div style={styles.panelIntro}>
+            <span style={styles.sectionKicker(palette)}>A practical path forward</span>
+            <h1 style={styles.panelTitle(palette)}>Upgrade with confidence.</h1>
+            <p style={styles.panelSubtitle(palette)}>Use this quick guide to choose a plan direction based on how you operate today and where your marketplace workflow is going next.</p>
+          </div>
+          <div className="upgrade-guide-grid" style={styles.guideGrid}>
+            <GuideCard palette={palette} number="01" title="Start with your workflow" icon={<UsersRound size={18} />} text="Choose Basic when you are building your first campaigns, communities, or placements and want a simple operating baseline." />
+            <GuideCard palette={palette} number="02" title="Measure what is working" icon={<BarChart3 size={18} />} text="Choose Pro when performance reporting and faster support will help you make better campaign and community decisions." />
+            <GuideCard palette={palette} number="03" title="Coordinate at scale" icon={<Sparkles size={18} />} text="Choose Business when several campaigns, communities, or stakeholders need a more structured operating rhythm." />
+          </div>
+          <div className="upgrade-guide-callout" style={styles.guideCallout(palette)}>
+            <div style={styles.guideCalloutIcon(palette)}><ShieldCheck size={19} /></div>
+            <div>
+              <strong style={{ color: palette.text, fontSize: 15 }}>Nothing important is changed by previewing plans.</strong>
+              <p style={{ color: palette.muted, fontSize: 13, lineHeight: 1.6, margin: "6px 0 0" }}>Your campaign IDs, CPC, budgets, applications, placements, tracking links, clicks, earnings, and marketplace history remain separate from this preference page.</p>
+            </div>
+          </div>
+        </section>}
+
+        {activeSection === "support" && <section id="support" className="upgrade-panel-section upgrade-support-grid" style={styles.panelSection(palette)}>
           <div style={styles.panelIntro}>
             <span style={styles.sectionKicker(palette)}>Guidance center</span>
             <h1 style={styles.panelTitle(palette)}>Support for your next step.</h1>
@@ -496,6 +551,20 @@ function Bullet({ palette, icon, text }: { palette: Record<string, string>; icon
   return <div style={styles.bulletItem(palette)}><span style={styles.bulletIcon(palette)}>{icon}</span><span>{text}</span></div>;
 }
 
+function GuideCard({ palette, number, title, icon, text }: { palette: Record<string, string>; number: string; title: string; icon: React.ReactNode; text: string }) {
+  return (
+    <article className="upgrade-guide-card" style={styles.guideCard(palette)}>
+      <div style={styles.guideCardTop}>
+        <span style={styles.guideNumber(palette)}>{number}</span>
+        <span style={styles.guideIcon(palette)}>{icon}</span>
+      </div>
+      <h2 style={styles.cardTitle(palette)}>{title}</h2>
+      <p style={styles.cardText(palette)}>{text}</p>
+      <span style={styles.guideArrow(palette)}><ArrowRight size={16} /></span>
+    </article>
+  );
+}
+
 function ReviewRow({ palette, label, value }: { palette: Record<string, string>; label: string; value: string }) {
   return <div style={styles.reviewRow(palette)}><span>{label}</span><strong>{value}</strong></div>;
 }
@@ -504,8 +573,11 @@ const styles = {
   page: (p: Record<string, string>): React.CSSProperties => ({ height: "100vh", width: "100vw", overflow: "hidden", background: p.page, color: p.text, padding: 0, transition: sharedTransition }),
   shell: { width: "100%", height: "100%", margin: 0 } as React.CSSProperties,
   topNav: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, height: 56, padding: "0 28px", borderBottom: `1px solid ${p.border}`, background: p.card }),
+  topNavLeft: { display: "flex", alignItems: "center", gap: 12 } as React.CSSProperties,
   backLink: (p: Record<string, string>): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 8, color: p.muted, textDecoration: "none", fontSize: 14, fontWeight: 700 }),
   secureLabel: (p: Record<string, string>): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 7, color: p.muted, fontSize: 12, fontWeight: 700 }),
+  mobileMenuButton: (p: Record<string, string>): React.CSSProperties => ({ display: "none", placeItems: "center", width: 36, height: 36, border: `1px solid ${p.borderStrong}`, borderRadius: 10, background: p.card, color: p.text, cursor: "pointer" }),
+  themeButton: (p: Record<string, string>): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 8, padding: "7px 9px", border: `1px solid ${p.borderStrong}`, borderRadius: 9, background: p.card, color: p.text, cursor: "pointer", fontSize: 12, fontWeight: 800 }),
   mainLayout: { display: "grid", gridTemplateColumns: "240px minmax(0, 1fr)", gap: 0, height: "calc(100% - 56px)", alignItems: "stretch" } as React.CSSProperties,
   mainContent: { minWidth: 0, minHeight: 0, overflowY: "auto", padding: "0 clamp(24px, 4vw, 62px) 22px" } as React.CSSProperties,
   sidebar: (p: Record<string, string>): React.CSSProperties => ({ position: "sticky", top: 0, display: "flex", flexDirection: "column", gap: 26, height: "100%", overflowY: "auto", padding: "29px 18px 18px", border: 0, borderRight: `1px solid ${p.border}`, borderRadius: 0, background: p.card, boxShadow: "none" }),
@@ -524,6 +596,14 @@ const styles = {
   panelIntro: { maxWidth: 720, marginBottom: 28 } as React.CSSProperties,
   panelTitle: (p: Record<string, string>): React.CSSProperties => ({ color: p.text, fontSize: "clamp(30px, 4vw, 48px)", lineHeight: 1.05, letterSpacing: "-.045em", margin: 0 }),
   panelSubtitle: (p: Record<string, string>): React.CSSProperties => ({ color: p.muted, fontSize: 14, lineHeight: 1.65, margin: "12px 0 0", maxWidth: 580 }),
+  guideGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 } as React.CSSProperties,
+  guideCard: (p: Record<string, string>): React.CSSProperties => ({ position: "relative", minHeight: 245, padding: 21, border: `1px solid ${p.border}`, borderRadius: 18, background: p.card, boxShadow: p.shadow, transition: "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease" }),
+  guideCardTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 } as React.CSSProperties,
+  guideNumber: (p: Record<string, string>): React.CSSProperties => ({ color: p.accent, fontSize: 12, fontWeight: 900, letterSpacing: ".08em" }),
+  guideIcon: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", placeItems: "center", width: 36, height: 36, borderRadius: 11, color: p.accent, background: p.accentSoft }),
+  guideArrow: (p: Record<string, string>): React.CSSProperties => ({ position: "absolute", right: 21, bottom: 19, display: "grid", placeItems: "center", color: p.accent }),
+  guideCallout: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "flex-start", gap: 13, marginTop: 18, padding: 18, border: `1px solid ${p.borderStrong}`, borderRadius: 16, background: p.pageSoft }),
+  guideCalloutIcon: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", placeItems: "center", flex: "0 0 auto", width: 36, height: 36, borderRadius: 11, color: p.positive, background: p.card }),
   hero: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 290px", gap: 32, alignItems: "end", padding: "64px 0 40px" } as React.CSSProperties,
   heroCopy: { maxWidth: 720 } as React.CSSProperties,
   eyebrow: (p: Record<string, string>): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 8, color: p.accent, fontSize: 12, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }),
@@ -587,6 +667,8 @@ const styles = {
   modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: 16 } as React.CSSProperties,
   modalTitle: (p: Record<string, string>): React.CSSProperties => ({ color: p.text, fontSize: 26, letterSpacing: "-.03em", margin: 0 }),
   iconButton: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", placeItems: "center", width: 34, height: 34, border: `1px solid ${p.border}`, borderRadius: 10, background: "transparent", color: p.muted, cursor: "pointer" }),
+  mobileDrawer: (p: Record<string, string>): React.CSSProperties => ({ position: "fixed", zIndex: 40, inset: "0 auto 0 0", width: "min(310px, 86vw)", display: "flex", flexDirection: "column", gap: 12, padding: "22px 16px", background: p.card, borderRight: `1px solid ${p.borderStrong}`, boxShadow: "18px 0 50px rgba(0,0,0,.22)" }),
+  drawerHeader: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 14, marginBottom: 4, borderBottom: `1px solid ${p.border}` }),
   reviewPlan: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "center", gap: 13, marginTop: 24, padding: 15, borderRadius: 13, background: p.accentSoft }),
   reviewIcon: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", placeItems: "center", width: 40, height: 40, borderRadius: 12, background: p.accent, color: p.accentText }),
   reviewRows: (p: Record<string, string>): React.CSSProperties => ({ marginTop: 18, borderTop: `1px solid ${p.border}` }),
@@ -599,22 +681,51 @@ const styles = {
 };
 
 const responsiveCss = `
+  @keyframes upgrade-rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes upgrade-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  .upgrade-animate main > * { animation: upgrade-rise 420ms ease both; }
+  .upgrade-animate main > *:nth-child(2) { animation-delay: 60ms; }
+  .upgrade-animate main > *:nth-child(3) { animation-delay: 110ms; }
+  .upgrade-guide-card:hover { transform: translateY(-4px); border-color: var(--upgrade-accent, #f2552c); box-shadow: 0 20px 46px rgba(35,30,25,.12); }
+  .upgrade-guide-card:nth-child(2) .guide-icon { animation: upgrade-float 3.2s ease-in-out infinite; }
+  .upgrade-guide-card:nth-child(3) .guide-icon { animation: upgrade-float 3.2s ease-in-out .7s infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .upgrade-animate main > *, .upgrade-guide-card:nth-child(2) .guide-icon, .upgrade-guide-card:nth-child(3) .guide-icon { animation: none !important; }
+    .upgrade-guide-card:hover { transform: none; }
+  }
   @media (max-width: 860px) {
     .upgrade-main-layout { grid-template-columns: 1fr !important; }
-    .upgrade-main-layout aside { position: static !important; }
+    .upgrade-main-layout > aside { display: none !important; }
+    .upgrade-main-layout main { min-height: 0; width: 100%; }
+    .upgrade-mobile-menu-button { display: grid !important; }
+    .upgrade-drawer-backdrop { position: fixed; z-index: 35; inset: 0; width: 100%; height: 100%; border: 0; background: rgba(7, 12, 19, .56); cursor: pointer; }
   }
   @media (max-width: 680px) {
-    .upgrade-page { height: auto !important; min-height: 100vh; overflow: visible !important; }
+    .upgrade-page { height: 100dvh !important; min-height: 100dvh; overflow: hidden !important; }
     .upgrade-shell { max-width: 100%; }
-    .upgrade-main-layout { height: auto !important; }
-    .upgrade-main-layout main { overflow: visible !important; padding-right: 0 !important; }
-    .upgrade-main-layout main > header { grid-template-columns: 1fr !important; padding-top: 42px !important; }
-    .upgrade-step-grid, .upgrade-plan-grid, .upgrade-support-grid { grid-template-columns: 1fr !important; }
+    .upgrade-main-layout { height: calc(100dvh - 56px) !important; }
+    .upgrade-main-layout main { overflow-y: auto !important; padding: 0 16px 30px !important; }
+    .upgrade-main-layout main > header { grid-template-columns: 1fr !important; padding-top: 30px !important; }
+    .upgrade-step-grid, .upgrade-plan-grid, .upgrade-support-grid, .upgrade-guide-grid { grid-template-columns: 1fr !important; }
     .upgrade-main-layout main > section[aria-label="Upgrade steps"] .upgrade-step-grid { grid-template-columns: 1fr; }
     .upgrade-main-layout main > section[aria-label="Upgrade steps"] .upgrade-step-grid > div { justify-content: flex-start; }
     .upgrade-main-layout main > section[aria-labelledby="plans-heading"] > div:first-child { align-items: flex-start; flex-direction: column; }
     .upgrade-main-layout main > section[aria-labelledby="plans-heading"] .upgrade-plan-grid { grid-template-columns: 1fr !important; }
     .upgrade-main-layout main > section[aria-labelledby="plans-heading"] [role="status"] { align-items: flex-start; flex-direction: column; }
     .upgrade-main-layout main > footer { align-items: flex-start; flex-direction: column; }
+    .upgrade-main-layout main .upgrade-panel-section { padding-top: 30px !important; }
+    .upgrade-main-layout main .panelIntro { margin-bottom: 22px !important; }
+    .upgrade-guide-callout { align-items: flex-start; }
+    .upgrade-top-nav { height: 58px !important; padding: 0 14px !important; }
+    .upgrade-top-nav .upgrade-secure-label { min-width: 0; }
+    .upgrade-top-nav > div:last-child > span { display: none; }
+    .theme-button-label { display: none; }
+    .upgrade-top-nav .upgrade-theme-button { margin-left: 2px; padding: 8px; }
   }
 `;
