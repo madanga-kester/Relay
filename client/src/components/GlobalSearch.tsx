@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { CornerDownLeft, FileText, Search, User, X } from "lucide-react";
+import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -24,6 +25,17 @@ export default function GlobalSearch({ items }: GlobalSearchProps) {
     const [focused, setFocused] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   const palette = {
     field: dark ? "#1e1e1e" : "#ffffff",
@@ -139,15 +151,30 @@ export default function GlobalSearch({ items }: GlobalSearchProps) {
     }
   };
 
-  return (
+  const searchBox = (
     <div
       ref={wrapRef}
-      style={{
-        position: "relative",
-        width: focused || open ? 320 : 240,
-        maxWidth: "100%",
-        transition: "width 0.2s ease",
+      onClick={(event) => {
+        if (isMobile && event.target === event.currentTarget) setOpen(false);
       }}
+      style={
+        isMobile
+          ? {
+              position: "fixed",
+              inset: 0,
+              zIndex: 100,
+              boxSizing: "border-box",
+              padding: 12,
+              overflowY: "auto",
+              background: dark ? "rgba(0, 0, 0, 0.6)" : "rgba(19, 34, 56, 0.35)",
+            }
+          : {
+              position: "relative",
+              width: focused || open ? 320 : 240,
+              maxWidth: "100%",
+              transition: "width 0.2s ease",
+            }
+      }
     >
       <div
         style={{
@@ -180,6 +207,7 @@ export default function GlobalSearch({ items }: GlobalSearchProps) {
           aria-controls="global-search-results"
           aria-activedescendant={open && results[activeIndex] ? `global-search-option-${activeIndex}` : undefined}
           autoComplete="off"
+          autoFocus={isMobile}
           onFocus={() => {
             setFocused(true);
             setOpen(true);
@@ -248,7 +276,8 @@ export default function GlobalSearch({ items }: GlobalSearchProps) {
       {open && (
         <div
           style={{
-            position: "absolute",
+            position: isMobile ? "static" : "absolute",
+            marginTop: isMobile ? 8 : 0,
             top: "calc(100% + 8px)",
             left: 0,
             right: 0,
@@ -360,4 +389,23 @@ export default function GlobalSearch({ items }: GlobalSearchProps) {
       )}
     </div>
   );
+
+  if (isMobile && !open) {
+    return (
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Search pages"
+        onClick={() => setOpen(true)}
+      >
+        <Search size={18} />
+      </button>
+    );
+  }
+
+  if (isMobile) {
+    return createPortal(searchBox, document.body);
+  }
+
+  return searchBox;
 }
