@@ -130,7 +130,7 @@ export default function CampaignOwnerApplications() {
 
   return <WorkspaceShell active="Applications" workspaceLabel="Campaign Owner" workspaceMode="campaign-owner">
     <div className="dashboard-body campaign-applications-page">
-      <Link className="hero-link route-back-link" href="/campaign-owner"><ArrowLeft size={15} /> Back to Campaign Owner overview</Link>
+      
       <section className="campaign-applications-heading"><div><span className="section-kicker"><span className="section-kicker-line" /> Community Owner applications</span><h1>Review your applicants</h1><p>Choose the communities that should carry your campaigns. Accepting an application creates a Ready to Post placement for the Community Owner.</p></div><div className="campaign-applications-summary"><strong>{pending.length}</strong><span>pending review</span></div></section>
       <div className="campaign-applications-note"><ShieldCheck size={16} /><span><strong>You make the decision.</strong> Community Owners only apply. Accept or reject each application from this workspace.</span></div>
       <section className="campaign-applications-section"><div className="section-heading"><div><div className="section-kicker"><span className="section-kicker-line section-kicker-line-lilac" /> Review queue</div><h2>Pending applications</h2></div><span className="section-count">{pending.length} awaiting your decision</span></div>{!loaded ? null : pending.length === 0 ? <div className="campaign-applications-empty"><CheckCircle2 size={21} /><strong>All caught up</strong><p>There are no pending community applications to review.</p></div> : <div className="campaign-application-list">{pending.map((application) => <ApplicationCard application={application} key={application.id} onDecide={decide} onView={setViewing} />)}</div>}</section>
@@ -154,7 +154,7 @@ function CommunityDialog({ application, details, onClose, onDecide }: { applicat
   const link = details?.communityLink && /^https?:\/\//i.test(details.communityLink) ? details.communityLink : undefined;
   const verified = application?.verification === "Verified";
   return <Dialog open={Boolean(application)} onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent className="max-h-[90vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl" style={{ background: "#ffffff", color: "var(--ink)" }}>
+    <DialogContent className="max-h-[90vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl" style={{ background: "var(--surface)", color: "var(--ink)", borderColor: "var(--border)" }}>
       {application && <>
         <DialogHeader className="flex-row items-center gap-4 border-b px-8 py-7 text-left" style={{ borderColor: "var(--border)" }}>
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-xl font-bold text-white" style={{ background: "var(--ink)" }}>{application.community.charAt(0)}</span>
@@ -162,7 +162,7 @@ function CommunityDialog({ application, details, onClose, onDecide }: { applicat
             <DialogTitle className="text-2xl font-medium tracking-tight" style={{ fontFamily: "Fraunces, Georgia, serif" }}>{application.community}</DialogTitle>
             <DialogDescription className="mt-1 text-sm" style={{ color: "var(--muted)" }}>{application.platform} community · applied to {application.campaign}</DialogDescription>
           </div>
-          <span className="mr-6 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold" style={{ background: verified ? "#e3f1e6" : "var(--coral-soft)", color: verified ? "#1f6b3a" : "var(--coral-dark)" }}><ShieldCheck size={13} /> {application.verification}</span>
+          <span className={`mr-6 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${verified ? "community-dialog-badge-verified" : "community-dialog-badge-pending"}`}><ShieldCheck size={13} /> {application.verification}</span>
         </DialogHeader>
         <div className="grid gap-7 px-8 py-7">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

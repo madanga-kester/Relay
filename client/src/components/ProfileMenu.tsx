@@ -143,10 +143,12 @@ export default function ProfileMenu({
             <small>{roleLabel}</small>
           </span>
         )}
-        <ChevronDown
-          size={15}
-          className={open ? "profile-chevron-open" : ""}
-        />
+        {sidebar && (
+          <ChevronDown
+            size={15}
+            className={open ? "profile-chevron-open" : ""}
+          />
+        )}
       </button>
       {open && (
         <div

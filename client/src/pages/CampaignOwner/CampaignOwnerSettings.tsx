@@ -135,7 +135,7 @@ export default function CampaignOwnerSettings() {
       workspaceMode="campaign-owner"
     >
       <div className="dashboard-body">
-        <Link className="hero-link route-back-link" href="/campaign-owner">
+        <Link className="hero-link route-back-link route-back-link-right" href="/campaign-owner">
           <ArrowLeft size={15} /> Back to Campaign Owner overview
         </Link>
 

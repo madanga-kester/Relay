@@ -685,3 +685,34 @@ export type RelayCampaignPerformance = {
 export async function getRelayCampaignPerformance() {
   return relayRequest<RelayCampaignPerformance[]>("/campaigns/performance");
 }
+
+export type RelayBillingActivity = {
+  campaignId: string;
+  trackingId: string;
+  createdAt: string;
+  advertiserCharge: number;
+  platformFee: number;
+};
+
+export async function getRelayBillingActivity() {
+  return relayRequest<RelayBillingActivity[]>("/campaigns/billing-activity");
+}
+
+export type RelayEarning = {
+  payoutId: string;
+  campaignId: string;
+  placementId: string;
+  amount: number;
+  status: string;
+  qualifiedClicks: number;
+  updatedAt: string;
+};
+
+export async function getRelayEarnings() {
+  return relayRequest<RelayEarning[]>("/placements/earnings");
+}
+
+
+export async function getRelayCampaign(id: string) {
+  return relayRequest<RelayCampaign>(`/campaigns/${id}`);
+}

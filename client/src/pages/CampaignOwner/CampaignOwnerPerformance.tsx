@@ -73,7 +73,7 @@ export default function CampaignOwnerPerformance() {
   return (
     <WorkspaceShell active="Performance" workspaceLabel="Campaign Owner" workspaceMode="campaign-owner">
       <div className="dashboard-body campaign-performance-page">
-        <Link className="hero-link route-back-link" href="/campaign-owner"><ArrowLeft size={15} /> Back to Campaign Owner overview</Link>
+        
         <section className="campaign-performance-heading">
           <div>
             <span className="section-kicker"><span className="section-kicker-line" /> Campaign delivery overview</span>

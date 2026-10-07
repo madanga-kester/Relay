@@ -528,19 +528,10 @@ export default function WorkspaceShell({
               )}
         </nav>
         <div className="sidebar-footer">
-          <div className="sidebar-tip">
-            <span className="tip-icon">
-              <UsersRound size={15} />
-            </span>
-            <div>
-              <strong>{workspaceLabel} workspace</strong>
-              <p>
-                {roleLocked
-                  ? "Signed in with your account role."
-                  : "Development workspace with no access controls."}
-              </p>
-            </div>
+          <div className="sidebar-clock">
+            <LiveDateTime />
           </div>
+       
           <ProfileMenu
             variant="sidebar"
             sidebarCollapsed={sidebarCollapsed && !sidebarHovered}
@@ -576,7 +567,6 @@ export default function WorkspaceShell({
           </button>
           <div className="topbar-context">
             <span className="topbar-kicker">{workspaceLabel} workspace</span>
-            <span className="topbar-date">{dateLabel ?? <LiveDateTime />}</span>
           </div>
           <div className="topbar-actions" style={{ marginLeft: "auto" }}>
                         <GlobalSearch items={searchItems} />

@@ -47,6 +47,7 @@ import {
 import { toast } from "sonner";
 import {
   getRelayBackendId,
+  getRelayEarnings,
   listMyRelayCommunities,
   listMyRelayPlacements,
   listRelayApplications,
@@ -1069,8 +1070,135 @@ const earningsByCampaign = [
   },
 ];
 
+
+
+type EarningsRow = {
+  id: string;
+  campaign: string;
+  community: string;
+  amount: number;
+  status: string;
+  date: string;
+  color: string;
+  clicks: number;
+};
+
+function colorFor(name: string) {
+  const palette = ["coral", "lilac", "moss"];
+  return palette[
+    [...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 3
+  ];
+}
+
+function sumOf(rows: { amount: number }[]) {
+  return rows.reduce((total, row) => total + row.amount, 0);
+}
+
+function groupRows(rows: EarningsRow[], key: (row: EarningsRow) => string) {
+  const groups = new Map<string, EarningsRow[]>();
+  rows.forEach((row) =>
+    groups.set(key(row), [...(groups.get(key(row)) ?? []), row]),
+  );
+  return Array.from(groups.entries());
+}
+
+function useEarnings() {
+  const [rows, setRows] = useState<EarningsRow[]>([]);
+  const [loaded, setLoaded] = useState(!relayBackendEnabled());
+  useEffect(() => {
+    if (!relayBackendEnabled()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [earnings, applications] = await Promise.all([
+          getRelayEarnings(),
+          listRelayApplications(),
+        ]);
+        if (cancelled) return;
+        const byPlacement = new Map(
+          applications.items
+            .filter((item) => item.placement)
+            .map((item) => [item.placement!.id, item]),
+        );
+        setRows(
+          earnings.map((item) => {
+            const application = byPlacement.get(item.placementId);
+            const campaign = application?.campaign?.name ?? "Campaign";
+            const community = application?.community?.name ?? "Community";
+            return {
+              id: item.payoutId,
+              campaign,
+              community,
+              amount: item.amount,
+              status:
+                item.status === "Pending"
+                  ? "Available"
+                  : item.status === "Held"
+                    ? "Pending"
+                    : item.status === "Completed"
+                      ? "Paid"
+                      : "Failed",
+              date: new Date(item.updatedAt).toLocaleDateString("en-KE", {
+                dateStyle: "medium",
+              }),
+              color: colorFor(community),
+              clicks: item.qualifiedClicks,
+            };
+          }),
+        );
+      } catch {
+        if (!cancelled)
+          toast.error("Could not load earnings", {
+            description:
+              "Check that the API is running, then refresh the page.",
+          });
+      }
+      if (!cancelled) setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return { rows, loaded };
+}
+
 export function Earnings() {
   const { currency, format } = useCurrency();
+  const backend = relayBackendEnabled();
+  const live = useEarnings();
+  const transactions: {
+    campaign: string;
+    community: string;
+    amount: number;
+    status: string;
+    date: string;
+    color: string;
+  }[] = backend ? live.rows : earningsTransactions;
+  const counted = live.rows.filter((row) => row.status !== "Failed");
+  const total = sumOf(counted);
+  const available = backend
+    ? sumOf(live.rows.filter((row) => row.status === "Available"))
+    : 642.8;
+  const pending = backend
+    ? sumOf(live.rows.filter((row) => row.status === "Pending"))
+    : 216.4;
+  const totalEarned = backend ? total : 859.2;
+  const byCommunity = backend
+    ? groupRows(counted, (row) => row.community).map(([name, items]) => ({
+        name,
+        amount: sumOf(items),
+        share: total ? Math.round((sumOf(items) / total) * 100) : 0,
+        color: colorFor(name),
+      }))
+    : earningsByCommunity;
+  const byCampaign = backend
+    ? groupRows(counted, (row) => row.campaign).map(([name, items]) => ({
+        name,
+        amount: sumOf(items),
+        detail: `${items.reduce((clicks, row) => clicks + row.clicks, 0).toLocaleString()} qualified clicks`,
+        color: colorFor(name),
+      }))
+    : earningsByCampaign;
   return (
     <WorkspaceShell active="Earnings">
       <div className="dashboard-body earnings-page">
@@ -1100,17 +1228,19 @@ export function Earnings() {
         <section className="earnings-balance-grid">
           <div className="earnings-balance-card earnings-balance-available">
             <span>Available</span>
-            <strong>{format(642.8)}</strong>
+            <strong>{format(available)}</strong>
             <small>Ready for your next payout</small>
           </div>
           <div className="earnings-balance-card earnings-balance-pending">
             <span>Pending</span>
-            <strong>{format(216.4)}</strong>
-            <small>Waiting for campaign approval</small>
+            <strong>{format(pending)}</strong>
+            <small>
+              {backend ? "On hold for review" : "Waiting for campaign approval"}
+            </small>
           </div>
           <div className="earnings-balance-card earnings-balance-total">
             <span>Total earned</span>
-            <strong>{format(859.2)}</strong>
+            <strong>{format(totalEarned)}</strong>
             <small>Since joining Relay</small>
           </div>
         </section>
@@ -1132,10 +1262,10 @@ export function Earnings() {
               <span>Status</span>
               <span>Date</span>
             </div>
-            {earningsTransactions.map((transaction) => (
+            {transactions.map((transaction, index) => (
               <div
                 className="earnings-transaction-row"
-                key={`${transaction.campaign}-${transaction.community}-${transaction.date}`}
+                key={`${transaction.campaign}-${transaction.community}-${transaction.date}-${index}`}
               >
                 <span className="transaction-campaign">
                   <span
@@ -1153,6 +1283,12 @@ export function Earnings() {
                 <span>{transaction.date}</span>
               </div>
             ))}
+            {backend && live.loaded && transactions.length === 0 && (
+              <p>
+                No earnings yet. Earnings appear here after someone clicks the
+                tracking link of one of your active placements.
+              </p>
+            )}
           </div>
         </section>
         <section className="earnings-breakdown-grid">
@@ -1166,7 +1302,7 @@ export function Earnings() {
                 <h2>Community earnings</h2>
               </div>
             </div>
-            {earningsByCommunity.map((item) => (
+            {byCommunity.map((item) => (
               <div className="breakdown-row" key={item.name}>
                 <span className={`breakdown-dot breakdown-dot-${item.color}`} />
                 <span>
@@ -1187,7 +1323,7 @@ export function Earnings() {
                 <h2>Campaign earnings</h2>
               </div>
             </div>
-            {earningsByCampaign.map((item) => (
+            {byCampaign.map((item) => (
               <div className="breakdown-row" key={item.name}>
                 <span className={`breakdown-dot breakdown-dot-${item.color}`} />
                 <span>
@@ -1203,6 +1339,15 @@ export function Earnings() {
     </WorkspaceShell>
   );
 }
+
+
+
+
+
+
+
+
+
 
 function ActivityView({
   workspaceMode = "legacy",

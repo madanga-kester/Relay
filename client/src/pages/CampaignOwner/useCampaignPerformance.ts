@@ -30,7 +30,7 @@ export type CampaignPerformanceState = {
 
 const empty: CampaignPerformanceState = { loading: true, failed: false, rows: [], activePlacements: 0, completedPlacements: 0 };
 
-async function allPages<T>(load: (page: number, pageSize: number) => Promise<RelayPage<T>>, pageSize = 100, maxPages = 20) {
+export async function allPages<T>(load: (page: number, pageSize: number) => Promise<RelayPage<T>>, pageSize = 100, maxPages = 20) {
   const first = await load(1, pageSize);
   const items = [...first.items];
   const lastPage = Math.min(first.totalPages, maxPages);
