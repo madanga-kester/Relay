@@ -427,6 +427,9 @@ export default function WorkspaceShell({
     const sidebarIconOnly = sidebarCollapsed && !sidebarHovered;
   const { currency } = useCurrency();
 
+  useEffect(() => {
+    document.querySelector(".dashboard")?.scrollTo({ top: 0 });
+  }, [location]);
   
   const activeNavItems: NavItemDef[] =
     workspaceMode === "community-owner"
@@ -491,7 +494,7 @@ export default function WorkspaceShell({
             style={{
               background: "none",
               border: "none",
-              font: "inherit",
+              fontFamily: "inherit",
               color: "inherit",
               textAlign: "left",
               cursor: "pointer",
@@ -511,7 +514,7 @@ export default function WorkspaceShell({
           </button>
         </div>
         {expanded && (
-          <div id={`nav-group-${group.id}`} style={{ paddingLeft: 12 }}>
+          <div id={`nav-group-${group.id}`} className="nav-group-children" style={{ paddingLeft: 12 }}>
             {groupItems.map((item) => renderNavLink(item))}
           </div>
         )}
