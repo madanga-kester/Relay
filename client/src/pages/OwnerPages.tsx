@@ -45,6 +45,7 @@ import {
 } from "@/data/marketplaceData";
 
 import { toast } from "sonner";
+import { useActivityFeed } from "@/lib/useActivityFeed";
 import {
   getRelayBackendId,
   getRelayEarnings,
@@ -1352,13 +1353,16 @@ export function Earnings() {
 function ActivityView({
   workspaceMode = "legacy",
 }: { workspaceMode?: "campaign-owner" | "legacy" } = {}) {
-  const [activities, setActivities] = useState(readCampaignActivities);
+  const [localActivities, setLocalActivities] = useState(readCampaignActivities);
   useEffect(() => {
-    const refresh = () => setActivities(readCampaignActivities());
+    const refresh = () => setLocalActivities(readCampaignActivities());
     window.addEventListener("ownerboard:activity-updated", refresh);
     return () =>
       window.removeEventListener("ownerboard:activity-updated", refresh);
   }, []);
+  const backend = relayBackendEnabled();
+  const feed = useActivityFeed();
+  const activities: { id: string; event: string; campaignName?: string; timestamp: string }[] = backend ? feed.items : localActivities;
   const fallback = [
     {
       title: "Orbit Mobile post went live",
@@ -1371,7 +1375,7 @@ function ActivityView({
       detail: "Design Dispatch · 3 days ago",
     },
   ];
-  const activityItems = activities.length
+  const activityItems = activities.length || backend
     ? activities
     : fallback.map((item, index) => ({
         id: `fallback-${index}`,
@@ -1381,8 +1385,8 @@ function ActivityView({
       }));
   const published = activities.filter(
     (item) =>
-      item.event.toLowerCase().includes("publish") ||
-      item.event.toLowerCase().includes("created"),
+      item.event.toLowerCase().startsWith("campaign") ||
+      item.event.toLowerCase().startsWith("application"),
   ).length;
   const placements = activities.filter((item) =>
     item.event.toLowerCase().includes("placement"),
@@ -1438,6 +1442,9 @@ function ActivityView({
               <span className="section-count">Latest first</span>
             </div>
             <div className="activity-list">
+              {backend && feed.loading && <p>Loading activity...</p>}
+              {backend && !feed.loading && feed.failed && <p>Activity could not be loaded. Check your connection and refresh the page.</p>}
+              {backend && !feed.loading && !feed.failed && activityItems.length === 0 && <p>No activity yet. Publishing a campaign, applying to one, or confirming a placement will appear here.</p>}
               {activityItems.map((item) => (
                 <div className="activity-row" key={item.id}>
                   <span className="action-icon action-icon-lilac">

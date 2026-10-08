@@ -85,7 +85,15 @@ export async function resendRelayVerification(email: string) {
 }
 
 type RequestOptions = RequestInit & { skipCsrf?: boolean };
+export class RelayApiError extends Error {
+  status: number;
 
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "RelayApiError";
+    this.status = status;
+  }
+}
 async function getCsrf() {
   if (csrfToken) return csrfToken;
   const response = await fetch(`${API_BASE}/auth/csrf`, { credentials: "include" });
@@ -126,7 +134,10 @@ export async function relayRequest<T>(path: string, options: RequestOptions = {}
     } catch {
       /* Use the status fallback below. */
     }
-    throw new Error(detail || `Relay API request failed (${response.status})`);
+    if (response.status === 401 && !detail) {
+      throw new RelayApiError("Your session is not active. Please sign in and try again.", 401);
+    }
+    throw new RelayApiError(detail || `Relay API request failed (${response.status})`, response.status);
   }
 
   if (response.status === 204) return undefined as T;
@@ -716,3 +727,20 @@ export async function getRelayEarnings() {
 export async function getRelayCampaign(id: string) {
   return relayRequest<RelayCampaign>(`/campaigns/${id}`);
 }
+
+
+export type RelayActivityEvent = {
+  id: string;
+  eventType: string;
+  entityType: string;
+  entityId: string;
+  entityName: string;
+  detail: string;
+  createdAt: string;
+};
+
+export async function getRelayActivity(limit = 30) {
+  return relayRequest<RelayActivityEvent[]>(`/activity?limit=${limit}`);
+}
+
+

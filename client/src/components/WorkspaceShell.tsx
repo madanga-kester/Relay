@@ -22,7 +22,7 @@ import GlobalSearch from "@/components/GlobalSearch";
 import type { SearchItem } from "@/components/GlobalSearch";
 import { useCurrency } from "@/lib/currency";
 import { Link, useLocation } from "wouter";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useRelaySession } from "@/contexts/RelaySessionContext";
 
 const navItems = [
@@ -60,7 +60,87 @@ const campaignOwnerNavItems = [
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/campaign-owner/settings", label: "Settings", icon: Settings },
 ];
+type NavItemDef = {
+  href: string;
+  label: string;
+  icon: typeof BarChart3;
+  emphasis?: boolean | undefined;
+};
 
+type NavItemEntry = { kind: "item"; label: string };
+
+type NavGroupEntry = {
+  kind: "group";
+  id: string;
+  label: string;
+  icon: typeof BarChart3;
+  labels: string[];
+};
+
+type NavLayoutEntry = NavItemEntry | NavGroupEntry;
+
+const legacyNavLayout: NavLayoutEntry[] = [
+  { kind: "item", label: "Overview" },
+  { kind: "item", label: "Campaigns" },
+  { kind: "item", label: "My Communities" },
+  {
+    kind: "group",
+    id: "legacy-insights",
+    label: "Insights",
+    icon: BarChart3,
+    labels: ["Performance", "Earnings", "Activity"],
+  },
+  { kind: "item", label: "Notifications" },
+  { kind: "item", label: "Settings" },
+];
+
+const communityOwnerNavLayout: NavLayoutEntry[] = [
+  { kind: "item", label: "Overview" },
+  {
+    kind: "group",
+    id: "community-owner-campaigns",
+    label: "Campaigns",
+    icon: ClipboardList,
+    labels: ["Campaigns", "Accepted Campaigns"],
+  },
+  { kind: "item", label: "My Communities" },
+  {
+    kind: "group",
+    id: "community-owner-insights",
+    label: "Insights",
+    icon: BarChart3,
+    labels: ["Performance", "Earnings", "Activity"],
+  },
+  { kind: "item", label: "Notifications" },
+  { kind: "item", label: "Settings" },
+];
+
+const campaignOwnerNavLayout: NavLayoutEntry[] = [
+  { kind: "item", label: "Overview" },
+  {
+    kind: "group",
+    id: "campaign-owner-campaigns",
+    label: "Campaigns",
+    icon: ClipboardList,
+    labels: ["My Campaigns", "Create Campaign", "Applications", "Active Placements"],
+  },
+  {
+    kind: "group",
+    id: "campaign-owner-insights",
+    label: "Insights",
+    icon: BarChart3,
+    labels: ["Performance", "Activity"],
+  },
+  { kind: "item", label: "Billing" },
+  { kind: "item", label: "Notifications" },
+  { kind: "item", label: "Settings" },
+];
+
+function resolveNavGroupItems(items: NavItemDef[], labels: string[]): NavItemDef[] {
+  return labels
+    .map((label) => items.find((item) => item.label === label))
+    .filter((item): item is NavItemDef => Boolean(item));
+}
 type WorkspaceShellProps = {
   active?: string;
   children: React.ReactNode;
@@ -334,6 +414,7 @@ export default function WorkspaceShell({
       : "/";
 
   const [campaignsOpen, setCampaignsOpen] = useState(true);
+    const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -347,12 +428,96 @@ export default function WorkspaceShell({
   const { currency } = useCurrency();
 
   
-  const activeNavItems =
+  const activeNavItems: NavItemDef[] =
     workspaceMode === "community-owner"
       ? communityOwnerNavItems
       : workspaceMode === "campaign-owner"
       ? campaignOwnerNavItems
       : navItems;
+  const activeNavLayout: NavLayoutEntry[] =
+    workspaceMode === "community-owner"
+      ? communityOwnerNavLayout
+      : workspaceMode === "campaign-owner"
+      ? campaignOwnerNavLayout
+      : legacyNavLayout;
+
+  const toggleNavGroup = (id: string, currentlyExpanded: boolean) =>
+    setOpenGroups((groups) => ({ ...groups, [id]: !currentlyExpanded }));
+
+  const renderNavLink = ({ href, label, icon: Icon, emphasis }: NavItemDef) => (
+    <Link
+      key={label}
+      className={`nav-item ${active === label ? "nav-item-active" : ""} ${
+        emphasis ? "nav-item-emphasis" : ""
+      }`}
+      href={href}
+      aria-label={label}
+      aria-current={active === label ? "page" : undefined}
+      title={sidebarIconOnly ? label : undefined}
+    >
+      <Icon size={17} />
+      <span>{label}</span>
+      {active === label && <span className="nav-active-dot" />}
+    </Link>
+  );
+
+  const renderNavGroup = (group: NavGroupEntry) => {
+    const groupItems = resolveNavGroupItems(activeNavItems, group.labels);
+    if (groupItems.length === 0) return null;
+
+    if (sidebarIconOnly) {
+      return (
+        <Fragment key={group.id}>
+          {groupItems.map((item) => renderNavLink(item))}
+        </Fragment>
+      );
+    }
+
+    const GroupIcon = group.icon;
+    const hasActive = groupItems.some((item) => item.label === active);
+    const expanded = group.id in openGroups ? openGroups[group.id] : hasActive;
+
+    return (
+      <div className="nav-group" key={group.id}>
+        <div className="nav-item-row">
+          <button
+            type="button"
+            className={`nav-item nav-item-grow ${
+              hasActive && !expanded ? "nav-item-active" : ""
+            }`}
+            onClick={() => toggleNavGroup(group.id, expanded)}
+            aria-expanded={expanded}
+            aria-controls={`nav-group-${group.id}`}
+            style={{
+              background: "none",
+              border: "none",
+              font: "inherit",
+              color: "inherit",
+              textAlign: "left",
+              cursor: "pointer",
+            }}
+          >
+            <GroupIcon size={17} />
+            <span>{group.label}</span>
+          </button>
+          <button
+            type="button"
+            className="nav-group-toggle"
+            onClick={() => toggleNavGroup(group.id, expanded)}
+            aria-label={`Toggle ${group.label} links`}
+            aria-expanded={expanded}
+          >
+            <ChevronDown size={13} className={expanded ? "nav-chevron-open" : ""} />
+          </button>
+        </div>
+        {expanded && (
+          <div id={`nav-group-${group.id}`} style={{ paddingLeft: 12 }}>
+            {groupItems.map((item) => renderNavLink(item))}
+          </div>
+        )}
+      </div>
+    );
+  };
   const searchItems: SearchItem[] = [
     ...activeNavItems.map(({ href, label }) => ({ href, label, group: "Pages" })),
     { href: "/profile", label: "Profile settings", group: "Account" },
@@ -428,104 +593,66 @@ export default function WorkspaceShell({
           }}
         >
           <span className="nav-section-label">Workspace</span>
-          {workspaceMode === "community-owner"
-            ? communityOwnerNavItems.map(({ href, label, icon: Icon, emphasis }) => (
-                <Link
-                  key={label}
-                  className={`nav-item ${active === label ? "nav-item-active" : ""} ${
-                    emphasis ? "nav-item-emphasis" : ""
-                  }`}
-                  href={href}
-                  aria-label={label}
-                  aria-current={active === label ? "page" : undefined}
-                  title={sidebarIconOnly ? label : undefined}
-                >
-                  <Icon size={17} />
-                  <span>{label}</span>
-                  {active === label && <span className="nav-active-dot" />}
-                </Link>
-              ))
-            : workspaceMode === "campaign-owner"
-            ? campaignOwnerNavItems.map(({ href, label, icon: Icon, emphasis }) => (
-                <Link
-                  key={label}
-                  className={`nav-item ${active === label ? "nav-item-active" : ""} ${
-                    emphasis ? "nav-item-emphasis" : ""
-                  }`}
-                  href={href}
-                  aria-label={label}
-                  aria-current={active === label ? "page" : undefined}
-                  title={sidebarIconOnly ? label : undefined}
-                >
-                  <Icon size={17} />
-                  <span>{label}</span>
-                  {active === label && <span className="nav-active-dot" />}
-                </Link>
-              ))
-            : navItems.map(({ href, label, icon: Icon, emphasis }) =>
-                label === "Campaigns" ? (
-                  <div className="nav-group" key={label}>
-                    <div className="nav-item-row">
-                      <Link
-                        className={`nav-item nav-item-grow ${
-                          active === label ? "nav-item-active" : ""
-                        } ${emphasis ? "nav-item-emphasis" : ""}`}
-                        href={href}
-                        aria-label={label}
-                        aria-current={active === label ? "page" : undefined}
-                        title={sidebarIconOnly ? label : undefined}
-                      >
-                        <Icon size={17} />
-                        <span>{label}</span>
-                        <span className="nav-count">3</span>
-                        {active === label && <span className="nav-active-dot" />}
-                      </Link>
-                      <button
-                        className="nav-group-toggle"
-                        onClick={() => setCampaignsOpen((open) => !open)}
-                        aria-label="Toggle campaign links"
-                        aria-expanded={campaignsOpen}
-                      >
-                        <ChevronDown
-                          size={13}
-                          className={campaignsOpen ? "nav-chevron-open" : ""}
-                        />
-                      </button>
-                    </div>
-                    {campaignsOpen && (
-                      <div className="accepted-nav-list">
-                        <span className="accepted-nav-label">Campaign tracking</span>
-                        <Link
-                          className={`accepted-nav-link ${
-                            location === "/campaigns/accepted" || location.includes("/workspace")
-                              ? "accepted-nav-link-active"
-                              : ""
-                          }`}
-                          href="/campaigns/accepted"
-                        >
-                          <span className="accepted-nav-dot" />
-                          Accepted campaigns
-                        </Link>
-                      </div>
-                    )}
+          {activeNavLayout.map((entry) => {
+            if (entry.kind === "group") {
+              return renderNavGroup(entry);
+            }
+            const item = activeNavItems.find((candidate) => candidate.label === entry.label);
+            if (!item) {
+              return null;
+            }
+            if (workspaceMode === "legacy" && item.label === "Campaigns") {
+              const { href, label, icon: Icon, emphasis } = item;
+              return (
+                <div className="nav-group" key={label}>
+                  <div className="nav-item-row">
+                    <Link
+                      className={`nav-item nav-item-grow ${
+                        active === label ? "nav-item-active" : ""
+                      } ${emphasis ? "nav-item-emphasis" : ""}`}
+                      href={href}
+                      aria-label={label}
+                      aria-current={active === label ? "page" : undefined}
+                      title={sidebarIconOnly ? label : undefined}
+                    >
+                      <Icon size={17} />
+                      <span>{label}</span>
+                      <span className="nav-count">3</span>
+                      {active === label && <span className="nav-active-dot" />}
+                    </Link>
+                    <button
+                      className="nav-group-toggle"
+                      onClick={() => setCampaignsOpen((open) => !open)}
+                      aria-label="Toggle campaign links"
+                      aria-expanded={campaignsOpen}
+                    >
+                      <ChevronDown
+                        size={13}
+                        className={campaignsOpen ? "nav-chevron-open" : ""}
+                      />
+                    </button>
                   </div>
-                ) : (
-                  <Link
-                    key={label}
-                    className={`nav-item ${active === label ? "nav-item-active" : ""} ${
-                      emphasis ? "nav-item-emphasis" : ""
-                    }`}
-                    href={href}
-                    aria-label={label}
-                    aria-current={active === label ? "page" : undefined}
-                    title={sidebarIconOnly ? label : undefined}
-                  >
-                    <Icon size={17} />
-                    <span>{label}</span>
-                    {active === label && <span className="nav-active-dot" />}
-                  </Link>
-                )
-              )}
+                  {campaignsOpen && (
+                    <div className="accepted-nav-list">
+                      <span className="accepted-nav-label">Campaign tracking</span>
+                      <Link
+                        className={`accepted-nav-link ${
+                          location === "/campaigns/accepted" || location.includes("/workspace")
+                            ? "accepted-nav-link-active"
+                            : ""
+                        }`}
+                        href="/campaigns/accepted"
+                      >
+                        <span className="accepted-nav-dot" />
+                        Accepted campaigns
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return renderNavLink(item);
+          })}
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-clock">

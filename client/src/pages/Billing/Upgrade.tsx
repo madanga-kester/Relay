@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  Activity,
   BadgeCheck,
   BarChart3,
   Check,
@@ -10,15 +11,19 @@ import {
   CreditCard,
   HelpCircle,
   Info,
+  Layers3,
   LockKeyhole,
   Mail,
   Menu,
   Moon,
+  Rocket,
   ShieldCheck,
   Sparkles,
   Sun,
+  TrendingUp,
   UsersRound,
   X,
+  Zap,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useRelaySession } from "@/contexts/RelaySessionContext";
@@ -342,6 +347,16 @@ export default function Upgrade() {
               <button type="button" onClick={() => setReviewOpen(true)} style={styles.primaryButton(palette)}>Review selection <ArrowRight size={15} /></button>
             </div>
           )}
+          <div className="upgrade-insight-grid" style={styles.insightGrid}>
+            <InsightCard palette={palette} icon={<Zap size={18} />} label="Faster decisions" text="Compare capabilities without leaving your current workspace." />
+            <InsightCard palette={palette} icon={<ShieldCheck size={18} />} label="Protected history" text="Your campaigns, CPC, placements, and earnings stay untouched." />
+            <InsightCard palette={palette} icon={<Activity size={18} />} label="Ready for growth" text="Move from a simple start to richer reporting as your activity grows." />
+          </div>
+          <div className="upgrade-live-strip" style={styles.liveStrip(palette)}>
+            <div style={styles.livePulse(palette)}><span /></div>
+            <div><strong style={{ color: palette.text, fontSize: 13 }}>Plan preview is live</strong><span style={{ color: palette.muted, fontSize: 12, marginLeft: 8 }}>Selection is reversible and no payment is collected.</span></div>
+            <span className="upgrade-live-dots" aria-hidden="true"><i /><i /><i /></span>
+          </div>
         </section>
         </>}
 
@@ -352,6 +367,11 @@ export default function Upgrade() {
             <p style={styles.panelSubtitle(palette)}>Review the capability direction for each plan without leaving your billing workspace.</p>
           </div>
           <ComparisonTable palette={palette} />
+          <div className="upgrade-metric-grid" style={styles.metricGrid}>
+            <MetricCard palette={palette} icon={<TrendingUp size={18} />} value="3" label="Plan directions" />
+            <MetricCard palette={palette} icon={<Layers3 size={18} />} value="6" label="Core capabilities compared" />
+            <MetricCard palette={palette} icon={<LockKeyhole size={18} />} value="0" label="Payments collected" />
+          </div>
         </section>}
 
         {activeSection === "guide" && <section id="guide" className="upgrade-panel-section" style={styles.panelSection(palette)}>
@@ -371,6 +391,11 @@ export default function Upgrade() {
               <strong style={{ color: palette.text, fontSize: 15 }}>Nothing important is changed by previewing plans.</strong>
               <p style={{ color: palette.muted, fontSize: 13, lineHeight: 1.6, margin: "6px 0 0" }}>Your campaign IDs, CPC, budgets, applications, placements, tracking links, clicks, earnings, and marketplace history remain separate from this preference page.</p>
             </div>
+          </div>
+          <div className="upgrade-guide-timeline" style={styles.timeline(palette)}>
+            <TimelineItem palette={palette} number="01" title="Choose a direction" text="Start with the plan that matches how your marketplace work happens today." />
+            <TimelineItem palette={palette} number="02" title="Review the fit" text="Use the comparison and support sections to check the next step." />
+            <TimelineItem palette={palette} number="03" title="Keep operating" text="Confirm only a preference while billing capabilities are prepared." />
           </div>
         </section>}
 
@@ -411,6 +436,10 @@ export default function Upgrade() {
             </div>
           </div>
           </div>
+          <div className="upgrade-quick-start" style={styles.quickStart(palette)}>
+            <div style={styles.quickStartHeading(palette)}><div style={styles.infoIcon(palette)}><Rocket size={19} /></div><div><h2 style={styles.cardTitle(palette)}>A simple way to decide</h2><p style={styles.cardText(palette)}>Use these three signals before selecting a plan direction.</p></div></div>
+            <div className="upgrade-check-grid"><Bullet palette={palette} icon={<Check size={15} />} text="How many active campaigns or communities you manage" /><Bullet palette={palette} icon={<Check size={15} />} text="How much reporting detail your workflow needs" /><Bullet palette={palette} icon={<Check size={15} />} text="Whether priority guidance would save your team time" /></div>
+          </div>
         </section>}
 
         {activeSection === "faq" && <section style={styles.faqSection(palette)} aria-labelledby="faq-heading">
@@ -435,6 +464,7 @@ export default function Upgrade() {
               );
             })}
           </div>
+          <div className="upgrade-faq-footer" style={styles.faqFooter(palette)}><div style={styles.infoIcon(palette)}><HelpCircle size={19} /></div><div><strong style={{ color: palette.text, fontSize: 14 }}>Still deciding?</strong><p style={{ color: palette.muted, fontSize: 12, margin: "5px 0 0" }}>Our team can help you map the plan preview to your marketplace workflow.</p></div><a href="mailto:support@example.com" style={styles.supportLink(palette)}>Ask for guidance <ArrowRight size={14} /></a></div>
         </section>}
 
         <footer style={styles.footer(palette)}>
@@ -569,6 +599,18 @@ function ReviewRow({ palette, label, value }: { palette: Record<string, string>;
   return <div style={styles.reviewRow(palette)}><span>{label}</span><strong>{value}</strong></div>;
 }
 
+function InsightCard({ palette, icon, label, text }: { palette: Record<string, string>; icon: React.ReactNode; label: string; text: string }) {
+  return <article className="upgrade-insight-card" style={styles.insightCard(palette)}><div style={styles.infoIcon(palette)}>{icon}</div><div><strong style={{ color: palette.text, fontSize: 13 }}>{label}</strong><p style={styles.cardText(palette)}>{text}</p></div></article>;
+}
+
+function MetricCard({ palette, icon, value, label }: { palette: Record<string, string>; icon: React.ReactNode; value: string; label: string }) {
+  return <article className="upgrade-metric-card" style={styles.metricCard(palette)}><div style={styles.metricIcon(palette)}>{icon}</div><strong style={styles.metricValue(palette)}>{value}</strong><span style={{ color: palette.muted, fontSize: 12 }}>{label}</span></article>;
+}
+
+function TimelineItem({ palette, number, title, text }: { palette: Record<string, string>; number: string; title: string; text: string }) {
+  return <article className="upgrade-timeline-item" style={styles.timelineItem(palette)}><span style={styles.timelineNumber(palette)}>{number}</span><div><strong style={{ color: palette.text, fontSize: 13 }}>{title}</strong><p style={styles.cardText(palette)}>{text}</p></div></article>;
+}
+
 const styles = {
   page: (p: Record<string, string>): React.CSSProperties => ({ height: "100vh", width: "100vw", overflow: "hidden", background: p.page, color: p.text, padding: 0, transition: sharedTransition }),
   shell: { width: "100%", height: "100%", margin: 0 } as React.CSSProperties,
@@ -604,6 +646,20 @@ const styles = {
   guideArrow: (p: Record<string, string>): React.CSSProperties => ({ position: "absolute", right: 21, bottom: 19, display: "grid", placeItems: "center", color: p.accent }),
   guideCallout: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "flex-start", gap: 13, marginTop: 18, padding: 18, border: `1px solid ${p.borderStrong}`, borderRadius: 16, background: p.pageSoft }),
   guideCalloutIcon: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", placeItems: "center", flex: "0 0 auto", width: 36, height: 36, borderRadius: 11, color: p.positive, background: p.card }),
+  insightGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 18 } as React.CSSProperties,
+  insightCard: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "flex-start", gap: 12, padding: 16, border: `1px solid ${p.border}`, borderRadius: 15, background: p.cardMuted, transition: "transform 180ms ease, border-color 180ms ease" }),
+  liveStrip: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "center", gap: 10, marginTop: 14, padding: "12px 14px", border: `1px solid ${p.border}`, borderRadius: 13, background: p.pageSoft }),
+  livePulse: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", placeItems: "center", width: 22, height: 22, borderRadius: "50%", background: p.accentSoft }),
+  metricGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 13, marginTop: 18 } as React.CSSProperties,
+  metricCard: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "center", gap: 10, padding: 16, border: `1px solid ${p.border}`, borderRadius: 15, background: p.cardMuted }),
+  metricIcon: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", placeItems: "center", width: 33, height: 33, flex: "0 0 auto", borderRadius: 10, color: p.accent, background: p.accentSoft }),
+  metricValue: (p: Record<string, string>): React.CSSProperties => ({ color: p.text, fontSize: 22, letterSpacing: "-.04em" }),
+  timeline: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 0, marginTop: 18, border: `1px solid ${p.border}`, borderRadius: 17, overflow: "hidden", background: p.card }),
+  timelineItem: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", gap: 12, padding: 17, borderRight: `1px solid ${p.border}` }),
+  timelineNumber: (p: Record<string, string>): React.CSSProperties => ({ display: "grid", placeItems: "center", width: 28, height: 28, flex: "0 0 auto", borderRadius: 9, background: p.accent, color: p.accentText, fontSize: 10, fontWeight: 900 }),
+  quickStart: (p: Record<string, string>): React.CSSProperties => ({ marginTop: 18, padding: 19, border: `1px solid ${p.borderStrong}`, borderRadius: 17, background: p.pageSoft }),
+  quickStartHeading: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "flex-start", gap: 12 }),
+  faqFooter: (p: Record<string, string>): React.CSSProperties => ({ display: "flex", alignItems: "center", gap: 12, marginTop: 18, padding: 16, border: `1px solid ${p.border}`, borderRadius: 15, background: p.card }),
   hero: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 290px", gap: 32, alignItems: "end", padding: "64px 0 40px" } as React.CSSProperties,
   heroCopy: { maxWidth: 720 } as React.CSSProperties,
   eyebrow: (p: Record<string, string>): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 8, color: p.accent, fontSize: 12, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }),
@@ -689,14 +745,29 @@ const responsiveCss = `
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-5px); }
   }
+  @keyframes upgrade-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(242,85,44,.26); }
+    50% { box-shadow: 0 0 0 7px rgba(242,85,44,0); }
+  }
+  @keyframes upgrade-dot-bounce {
+    0%, 70%, 100% { transform: translateY(0); opacity: .45; }
+    35% { transform: translateY(-4px); opacity: 1; }
+  }
   .upgrade-animate main > * { animation: upgrade-rise 420ms ease both; }
   .upgrade-animate main > *:nth-child(2) { animation-delay: 60ms; }
   .upgrade-animate main > *:nth-child(3) { animation-delay: 110ms; }
   .upgrade-guide-card:hover { transform: translateY(-4px); border-color: var(--upgrade-accent, #f2552c); box-shadow: 0 20px 46px rgba(35,30,25,.12); }
   .upgrade-guide-card:nth-child(2) .guide-icon { animation: upgrade-float 3.2s ease-in-out infinite; }
   .upgrade-guide-card:nth-child(3) .guide-icon { animation: upgrade-float 3.2s ease-in-out .7s infinite; }
+  .upgrade-insight-card:hover, .upgrade-metric-card:hover { transform: translateY(-3px); border-color: var(--upgrade-accent, #f2552c); }
+  .upgrade-live-strip .upgrade-live-dots { display: inline-flex; gap: 4px; margin-left: auto; }
+  .upgrade-live-strip .upgrade-live-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--upgrade-accent, #f2552c); animation: upgrade-dot-bounce 1.4s ease-in-out infinite; }
+  .upgrade-live-strip .upgrade-live-dots i:nth-child(2) { animation-delay: .15s; }
+  .upgrade-live-strip .upgrade-live-dots i:nth-child(3) { animation-delay: .3s; }
+  .upgrade-live-strip > div:first-child > span { display: block; width: 7px; height: 7px; border-radius: 50%; background: #35b88a; animation: upgrade-pulse 1.8s infinite; }
+  .upgrade-timeline-item:last-child { border-right: 0 !important; }
   @media (prefers-reduced-motion: reduce) {
-    .upgrade-animate main > *, .upgrade-guide-card:nth-child(2) .guide-icon, .upgrade-guide-card:nth-child(3) .guide-icon { animation: none !important; }
+    .upgrade-animate main > *, .upgrade-guide-card:nth-child(2) .guide-icon, .upgrade-guide-card:nth-child(3) .guide-icon, .upgrade-live-strip .upgrade-live-dots i, .upgrade-live-strip > div:first-child > span { animation: none !important; }
     .upgrade-guide-card:hover { transform: none; }
   }
   @media (max-width: 860px) {
@@ -722,6 +793,10 @@ const responsiveCss = `
     .upgrade-main-layout main .upgrade-panel-section { padding-top: 30px !important; }
     .upgrade-main-layout main .panelIntro { margin-bottom: 22px !important; }
     .upgrade-guide-callout { align-items: flex-start; }
+    .upgrade-insight-grid, .upgrade-metric-grid, .upgrade-guide-timeline { grid-template-columns: 1fr !important; }
+    .upgrade-timeline-item { border-right: 0 !important; border-bottom: 1px solid currentColor; }
+    .upgrade-timeline-item:last-child { border-bottom: 0 !important; }
+    .upgrade-faq-footer { align-items: flex-start !important; flex-wrap: wrap; }
     .upgrade-top-nav { height: 58px !important; padding: 0 14px !important; }
     .upgrade-top-nav .upgrade-secure-label { min-width: 0; }
     .upgrade-top-nav > div:last-child > span { display: none; }

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { BellOff } from "lucide-react";
+import { useState, type CSSProperties } from "react";
+import { Bell, BellOff, CheckCheck, Inbox, Search, X } from "lucide-react";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -8,17 +8,33 @@ import {
   useNotifications,
 } from "@/lib/notifications";
 
-type Filter = "all" | "unread";
+type Filter = "all" | "unread" | "read";
 
 export default function Notifications() {
   const { theme } = useTheme();
   const dark = theme === "dark";
   const notifications = useNotifications();
   const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const unreadCount = notifications.filter((item) => !item.read).length;
-  const visible =
-    filter === "unread" ? notifications.filter((item) => !item.read) : notifications;
+  const readCount = notifications.length - unreadCount;
+  const readPercent =
+    notifications.length === 0 ? 0 : Math.round((readCount / notifications.length) * 100);
+  const term = query.trim().toLowerCase();
+  const byFilter =
+    filter === "unread"
+      ? notifications.filter((item) => !item.read)
+      : filter === "read"
+        ? notifications.filter((item) => item.read)
+        : notifications;
+  const visible = term
+    ? byFilter.filter((item) => `${item.title} ${item.body ?? ""}`.toLowerCase().includes(term))
+    : byFilter;
+  const newItems = visible.filter((item) => !item.read);
+  const earlierItems = visible.filter((item) => item.read);
+  const selected = notifications.find((item) => item.id === selectedId) ?? null;
 
   const palette = {
     card: dark ? "#1e1e1e" : "#ffffff",
@@ -33,11 +49,45 @@ export default function Notifications() {
   const tabs: { id: Filter; label: string }[] = [
     { id: "all", label: `All (${notifications.length})` },
     { id: "unread", label: `Unread (${unreadCount})` },
+    { id: "read", label: `Read (${readCount})` },
   ];
+
+  const themeVars = {
+    "--ntf-card": palette.card,
+    "--ntf-border": palette.border,
+    "--ntf-text": palette.text,
+    "--ntf-muted": palette.muted,
+    "--ntf-tile": palette.tile,
+    "--ntf-unread": palette.unread,
+    "--ntf-accent": palette.accent,
+  } as CSSProperties;
+
+  const renderItem = (item: (typeof notifications)[number]) => (
+    <li key={item.id}>
+      <button
+        type="button"
+        onClick={() => {
+          markNotificationRead(item.id);
+          setSelectedId(item.id);
+        }}
+        className={`ntf-item${item.read ? "" : " ntf-item-unread"}${selectedId === item.id ? " ntf-item-selected" : ""}`}
+      >
+        <span aria-hidden="true" className={`ntf-dot${item.read ? "" : " ntf-dot-on"}`} />
+        <span className="ntf-item-main">
+          <span className="ntf-item-title">
+            <strong style={{ fontWeight: item.read ? 600 : 700 }}>{item.title}</strong>
+            {!item.read && <span className="ntf-new-badge">New</span>}
+          </span>
+          {item.body && <span className="ntf-item-body">{item.body}</span>}
+        </span>
+        <small className="ntf-item-time">{item.time}</small>
+      </button>
+    </li>
+  );
 
   return (
     <WorkspaceShell active="Notifications" dateLabel="Account notifications">
-      <div className="dashboard-body">
+      <div className="dashboard-body ntf-page" style={themeVars}>
         <section className="route-page-heading">
           <div>
             <span className="section-kicker">
@@ -48,151 +98,157 @@ export default function Notifications() {
           </div>
         </section>
 
-        <section
-          style={{
-            backgroundColor: palette.card,
-            border: `1px solid ${palette.border}`,
-            borderRadius: 16,
-            overflow: "hidden",
-            color: palette.text,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-              padding: "14px 18px",
-              borderBottom: `1px solid ${palette.border}`,
-            }}
-          >
-            <div role="tablist" aria-label="Filter notifications" style={{ display: "flex", gap: 8 }}>
-              {tabs.map((tab) => {
-                const selected = filter === tab.id;
-                return (
+        <section className="ntf-stats" aria-label="Notification summary">
+          <div className="ntf-stat">
+            <span className="ntf-stat-icon">
+              <Bell size={16} />
+            </span>
+            <span>
+              <small>Total</small>
+              <strong>{notifications.length}</strong>
+            </span>
+          </div>
+          <div className="ntf-stat">
+            <span className="ntf-stat-icon">
+              <Inbox size={16} />
+            </span>
+            <span>
+              <small>Unread</small>
+              <strong>{unreadCount}</strong>
+            </span>
+          </div>
+          <div className="ntf-stat">
+            <span className="ntf-stat-icon">
+              <CheckCheck size={16} />
+            </span>
+            <span>
+              <small>Read</small>
+              <strong>{readCount}</strong>
+            </span>
+          </div>
+          <div className="ntf-stat">
+            <span className="ntf-stat-icon">
+              <CheckCheck size={16} />
+            </span>
+            <span>
+              <small>Read rate</small>
+              <strong>{readPercent}%</strong>
+              <span className="ntf-progress-track">
+                <span style={{ width: `${readPercent}%` }} />
+              </span>
+            </span>
+          </div>
+        </section>
+
+        <section className="ntf-panel">
+          <div className="ntf-panel-main">
+            <div className="ntf-toolbar">
+              <div role="tablist" aria-label="Filter notifications" className="ntf-tabs">
+                {tabs.map((tab) => {
+                  const selected = filter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      onClick={() => setFilter(tab.id)}
+                      className={selected ? "ntf-tab ntf-tab-active" : "ntf-tab"}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <label className="ntf-search">
+                <Search size={14} />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search notifications"
+                  aria-label="Search notifications"
+                />
+                {query && (
                   <button
-                    key={tab.id}
                     type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    onClick={() => setFilter(tab.id)}
-                    style={{
-                      border: "none",
-                      borderRadius: 999,
-                      padding: "7px 14px",
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      background: selected ? palette.accent : palette.tile,
-                      color: selected ? "#ffffff" : palette.muted,
-                    }}
+                    className="ntf-search-clear"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
                   >
-                    {tab.label}
+                    <X size={14} />
                   </button>
-                );
-              })}
+                )}
+              </label>
+              {unreadCount > 0 && (
+                <button type="button" onClick={markAllNotificationsRead} className="ntf-mark-all">
+                  <CheckCheck size={14} /> Mark all as read
+                </button>
+              )}
             </div>
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={markAllNotificationsRead}
-                style={{
-                  border: "none",
-                  background: "none",
-                  padding: 0,
-                  color: palette.accent,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Mark all as read
-              </button>
+
+            {notifications.length > 0 && (
+              <div className="ntf-count">
+                Showing {visible.length} of {notifications.length}
+              </div>
+            )}
+
+            {visible.length === 0 ? (
+              <div className="ntf-empty">
+                {term ? <Search size={28} /> : filter === "unread" ? <Inbox size={28} /> : <BellOff size={28} />}
+                <span>
+                  {term
+                    ? `No notifications match "${query.trim()}"`
+                    : filter === "unread"
+                      ? "No unread notifications"
+                      : filter === "read"
+                        ? "No read notifications"
+                        : "No notifications yet"}
+                </span>
+              </div>
+            ) : (
+              <>
+                {newItems.length > 0 && (
+                  <div className="ntf-group">
+                    <h2 className="ntf-group-title">
+                      New <b>{newItems.length}</b>
+                    </h2>
+                    <ul className="ntf-list">{newItems.map(renderItem)}</ul>
+                  </div>
+                )}
+                {earlierItems.length > 0 && (
+                  <div className="ntf-group">
+                    <h2 className="ntf-group-title">
+                      Earlier <b>{earlierItems.length}</b>
+                    </h2>
+                    <ul className="ntf-list">{earlierItems.map(renderItem)}</ul>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {visible.length === 0 ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 8,
-                padding: "48px 16px",
-                color: palette.muted,
-                fontSize: 14,
-                textAlign: "center",
-              }}
-            >
-              <BellOff size={28} />
-              <span>
-                {filter === "unread" ? "No unread notifications" : "No notifications yet"}
-              </span>
-            </div>
-          ) : (
-            <ul style={{ listStyle: "none", margin: 0, padding: 8 }}>
-              {visible.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={() => markNotificationRead(item.id)}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 14,
-                      width: "100%",
-                      padding: "14px 14px",
-                      border: "none",
-                      borderRadius: 12,
-                      background: item.read ? "transparent" : palette.unread,
-                      color: palette.text,
-                      textAlign: "left",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        width: 8,
-                        height: 8,
-                        marginTop: 7,
-                        flexShrink: 0,
-                        borderRadius: 999,
-                        background: item.read ? "transparent" : palette.accent,
-                      }}
-                    />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <strong
-                        style={{
-                          display: "block",
-                          fontSize: 15,
-                          fontWeight: item.read ? 600 : 700,
-                        }}
-                      >
-                        {item.title}
-                      </strong>
-                      {item.body && (
-                        <span
-                          style={{
-                            display: "block",
-                            marginTop: 3,
-                            color: palette.muted,
-                            fontSize: 14,
-                          }}
-                        >
-                          {item.body}
-                        </span>
-                      )}
-                    </span>
-                    <small style={{ flexShrink: 0, color: palette.muted, fontSize: 12 }}>
-                      {item.time}
-                    </small>
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {selected && (
+            <aside className="ntf-detail">
+              <div className="ntf-detail-header">
+                <h2>{selected.title}</h2>
+                <button
+                  type="button"
+                  className="ntf-detail-close"
+                  onClick={() => setSelectedId(null)}
+                  aria-label="Close details"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="ntf-detail-meta">
+                <span>{selected.time}</span>
+                {!selected.read && <span className="ntf-new-badge">New</span>}
+              </div>
+              <div className="ntf-detail-body">
+                {selected.body ? selected.body : "No additional details."}
+              </div>
+            </aside>
           )}
         </section>
       </div>

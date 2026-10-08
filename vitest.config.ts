@@ -33,6 +33,12 @@ export default defineConfig({
   },
   server: {
     host: true,
+    proxy: {
+      "/api": {
+        target: "http://localhost:5070",
+        changeOrigin: false,
+      },
+    },
     allowedHosts: ["localhost", "127.0.0.1"],
     fs: {
       strict: true,

@@ -73,7 +73,7 @@ export default function VerifyEmailPage() {
         </p>
       )}
       <button className="auth-submit" type="button" onClick={verify}>
-        Verify Email <ArrowRight size={16} />
+        Verify Email 
       </button>
       <div className="auth-secondary-row">
         <button type="button" className="auth-forgot" disabled={!!count} onClick={resend}>
