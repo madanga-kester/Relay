@@ -592,6 +592,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(255, 107, 74, .3
 .detail-summary-strip strong { color: var(--ink); font-size: calc(23px * var(--text-scale, 1)); letter-spacing: -.05em; }
 .detail-summary-strip span { color: var(--muted); font-size: calc(9px * var(--text-scale, 1)); }
 .detail-content-grid { display: grid; grid-template-columns: minmax(0, 1.38fr) minmax(270px, .62fr); gap: 28px; }
+.detail-content-grid > main > .owner-section + .owner-section { margin-top: 38px; }
+.detail-content-grid > .owner-side-column { align-content: start; }
 .detail-chart-card, .detail-campaign-card { padding: 21px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .detail-chart-header { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: calc(11px * var(--text-scale, 1)); }
 .detail-chart-header strong { color: var(--ink); font-size: calc(18px * var(--text-scale, 1)); }
@@ -1052,7 +1054,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid rgba(255, 107, 74, .3
 .audience-verification-grid span { color: var(--muted); font-size: calc(9px * var(--text-scale, 1)); line-height: 1.35; }
 .detail-performance-summary { margin-bottom: 14px; }
 .detail-performance-summary > div { background: var(--surface); }
-.eligibility-section { margin-top: 35px; }
+
 .eligibility-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 17px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .eligibility-card p { margin: 5px 0; color: var(--muted-deep); font-size: calc(11px * var(--text-scale, 1)); }
 .eligibility-card small { color: var(--muted); font-size: calc(9px * var(--text-scale, 1)); }

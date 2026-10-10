@@ -22,6 +22,8 @@ import CommunityOwnerCampaigns from "./pages/CommunityOwner/CommunityOwnerCampai
 import CampaignOwnerDashboard from "./pages/CampaignOwner/CampaignOwnerDashboard";
 import CampaignOwnerSectionPlaceholder from "./pages/CampaignOwner/CampaignOwnerSectionPlaceholder";
 import CampaignOwnerCreateCampaign from "./pages/CampaignOwner/CampaignOwnerCreateCampaign";
+
+import CampaignOwnerAdPreview from "./pages/CampaignOwner/CampaignOwnerAdPreview";
 import CampaignOwnerMyCampaigns from "./pages/CampaignOwner/CampaignOwnerMyCampaigns";
 import CampaignOwnerCampaignDetail from "./pages/CampaignOwner/CampaignOwnerCampaignDetail";
 import CampaignOwnerApplications from "./pages/CampaignOwner/CampaignOwnerApplications";
@@ -101,6 +103,7 @@ function Router() {
       <Route path={"/campaign-owner/campaigns/:id"} component={CampaignOwnerCampaignDetail} />
       <Route path={"/campaign-owner/campaigns"} component={CampaignOwnerMyCampaigns} />
       <Route path={"/campaign-owner/create"} component={CampaignOwnerCreateCampaign} />
+            <Route path={"/campaign-owner/ad-preview"} component={CampaignOwnerAdPreview} />
       <Route path={"/campaign-owner/applications"} component={CampaignOwnerApplications} />
       <Route path={"/campaign-owner/billing"} component={CampaignOwnerBilling} />
       <Route path={"/campaign-owner/activity"} component={CampaignOwnerActivity} />

@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { Bell, BellOff, CheckCheck, Inbox, Search, X } from "lucide-react";
+import { Link } from "wouter";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -247,6 +248,13 @@ export default function Notifications() {
               </div>
               <div className="ntf-detail-body">
                 {selected.body ? selected.body : "No additional details."}
+                {selected.href && (
+                  <div style={{ marginTop: 14 }}>
+                    <Link href={selected.href} style={{ color: "var(--ntf-accent)", fontWeight: 700 }}>
+                      Open
+                    </Link>
+                  </div>
+                )}
               </div>
             </aside>
           )}

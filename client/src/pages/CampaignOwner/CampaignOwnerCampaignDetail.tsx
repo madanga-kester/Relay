@@ -7,6 +7,7 @@ import type { CampaignActivity, CampaignRecord, MarketplaceApplication } from "@
 import { displayMoney, moneyToNumber } from "@/data/marketplaceData";
 import { useCurrency } from "@/lib/currency";
 import { useCampaignDetail } from "./useCampaignDetail";
+import { getRelayActivity, relayBackendEnabled, type RelayActivityEvent } from "@/lib/relayApi";
 function statusClass(status: CampaignRecord["status"]) { return `campaign-list-status campaign-list-status-${status.toLowerCase().replace(/\s+/g, "-")}`; }
 
 export default function CampaignOwnerCampaignDetail() {
@@ -16,6 +17,17 @@ export default function CampaignOwnerCampaignDetail() {
   const [activities, setActivities] = useState<CampaignActivity[]>(readCampaignActivities);
   useEffect(() => { const refresh = () => { setCampaigns(readCampaigns()); setApplications(readApplications()); setActivities(readCampaignActivities()); }; refresh(); void syncServerClickEvents().then(refresh); window.addEventListener("ownerboard:applications-updated", refresh); window.addEventListener("ownerboard:click-events-updated", refresh); window.addEventListener("ownerboard:activity-updated", refresh); return () => { window.removeEventListener("ownerboard:applications-updated", refresh); window.removeEventListener("ownerboard:click-events-updated", refresh); window.removeEventListener("ownerboard:activity-updated", refresh); }; }, []);
   const detail = useCampaignDetail(params?.id);
+  const backend = relayBackendEnabled();
+  const [feed, setFeed] = useState<RelayActivityEvent[] | null>(null);
+  useEffect(() => {
+    if (!backend) return;
+    let cancelled = false;
+    getRelayActivity(100)
+      .then((items) => { if (!cancelled) setFeed(items); })
+      .catch(() => { if (!cancelled) setFeed([]); });
+    return () => { cancelled = true; };
+  }, [backend]);
+
   const { format } = useCurrency();
   const campaign = detail.campaign ?? campaigns.find((item) => item.id === params?.id);
   if (!campaign && detail.loading) return <WorkspaceShell active="My Campaigns" workspaceLabel="Campaign Owner" workspaceMode="campaign-owner"><div className="dashboard-body campaign-placement-detail-page">
@@ -33,7 +45,12 @@ export default function CampaignOwnerCampaignDetail() {
   const financials = detail.stats
     ? { ...baseFinancials, qualifiedClicks: detail.stats.qualifiedClicks, advertiserSpend: detail.stats.advertiserSpend, remainingBudget: Math.max(moneyToNumber(campaign.budget) - detail.stats.advertiserSpend, 0) }
     : baseFinancials;
-  const campaignActivities = activities.filter((item) => item.campaignId === campaign.id || item.campaignId === detail.backendId);
+  const campaignId = detail.backendId ?? campaign.id;
+  const campaignActivities: { id: string; event: string; timestamp: string }[] = backend
+    ? (feed ?? [])
+        .filter((item) => item.entityType === "Campaign" && item.entityId === campaignId)
+        .map((item) => ({ id: item.id, event: item.eventType, timestamp: item.createdAt }))
+    : activities.filter((item) => item.campaignId === campaign.id || item.campaignId === detail.backendId);
   return <WorkspaceShell active="My Campaigns" workspaceLabel="Campaign Owner" workspaceMode="campaign-owner"><div className="dashboard-body campaign-placement-detail-page">
     <section className="campaign-placement-detail-heading"><div><span className="section-kicker"><span className="section-kicker-line" /> Campaign details</span><h1>{campaign.name}</h1><p>{campaign.advertiser} · {campaign.description}</p></div><span className={statusClass(campaign.status)}><span /> {campaign.status}</span></section><div className="campaign-placement-detail-grid"><main><section className="campaign-placement-detail-card"><div className="section-heading"><div><div className="section-kicker"><span className="section-kicker-line section-kicker-line-lilac" /> Campaign brief</div><h2>Campaign information</h2></div><Megaphone size={18} /></div><div className="campaign-placement-info-grid"><span><small>Advertiser</small><strong>{campaign.advertiser}</strong></span><span><small>Platforms</small><strong>{campaign.platforms.join(", ")}</strong></span><span><small>Category</small><strong>{campaign.category}</strong></span><span><small>Target location</small><strong>{campaign.location}</strong></span><span><small>Audience range</small><strong>{campaign.minAudience} – {campaign.maxAudience}</strong></span><span><small>Campaign dates</small><strong><CalendarDays size={13} /> {campaign.startDate} – {campaign.endDate}</strong></span></div></section><section className="campaign-placement-detail-card"><div className="section-heading"><div><div className="section-kicker"><span className="section-kicker-line" /> Approved creative</div><h2>Advertisement</h2></div></div><blockquote className="campaign-placement-advertisement">“{campaign.advertisement}”</blockquote><small className="campaign-placement-readonly">Approved campaign copy · read only</small><p><a className="section-link" href={campaign.destinationUrl} target="_blank" rel="noreferrer">Open destination <ArrowUpRight size={14} /></a></p></section><section className="campaign-placement-detail-card"><div className="section-heading"><div><div className="section-kicker"><span className="section-kicker-line section-kicker-line-lilac" /> Lifecycle history</div><h2>Campaign activity</h2></div></div>{campaignActivities.length ? campaignActivities.map((item) => <div className="activity-row" key={item.id}><span className="action-icon action-icon-lilac"><CheckCircle2 size={16} /></span><span><strong>{item.event}</strong><small>{new Date(item.timestamp).toLocaleString()}</small></span></div>) : <p>No lifecycle events recorded yet.</p>}</section></main><aside className="campaign-placement-detail-aside"><section className="campaign-placement-stat-card"><span className="section-kicker"><span className="section-kicker-line section-kicker-line-lilac" /> Campaign performance</span><div className="campaign-placement-big-stat"><MousePointer2 size={17} /><span><strong>{financials.qualifiedClicks.toLocaleString()}</strong><small>qualified clicks</small></span></div><div className="campaign-placement-big-stat"><WalletCards size={17} /><span><strong>{format(financials.advertiserSpend)}</strong><small>campaign spend</small></span></div><div className="campaign-placement-big-stat"><WalletCards size={17} /><span><strong>{format(financials.remainingBudget)}</strong><small>remaining budget</small></span></div><div className="campaign-placement-big-stat"><UsersRound size={17} /><span><strong>{accepted.length} / {campaign.maxCommunities}</strong><small>accepted communities</small></span></div><div className="campaign-placement-big-stat"><CheckCircle2 size={17} /><span><strong>{campaign.applications}</strong><small>applications received</small></span></div></section><section className="campaign-placement-stat-card"><span className="section-kicker"><span className="section-kicker-line" /> Financial rules</span><p><strong>{displayMoney(campaign.cpc)}</strong> advertiser CPC</p><p><strong>{financials.maximumQualifiedClicks.toLocaleString()}</strong> maximum qualified clicks</p><p><strong>{format(financials.communityOwnerCpc)}</strong> community payout per click</p><Link className="section-link" href="/campaign-owner/performance">View performance <ArrowUpRight size={14} /></Link></section></aside></div></div></WorkspaceShell>;
 }

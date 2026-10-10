@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   BarChart3,
   CalendarDays,
+  Camera,
   CheckCircle2,
   ChevronRight,
   Clock3,
@@ -23,7 +24,15 @@ import {
   Target,
   Upload,
   UsersRound,
+  X,
 } from "lucide-react";
+import type { IconType } from "react-icons";
+import {
+  FaDiscord,
+  FaFacebookF,
+  FaTelegramPlane,
+  FaWhatsapp,
+} from "react-icons/fa";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useRoute } from "wouter";
 import WorkspaceShell from "@/components/WorkspaceShell";
@@ -46,6 +55,7 @@ import {
 
 import { toast } from "sonner";
 import { useActivityFeed } from "@/lib/useActivityFeed";
+import { compressImageToDataUrl } from "@/lib/imageUtils";
 import {
   getRelayBackendId,
   getRelayEarnings,
@@ -77,6 +87,9 @@ type Community = {
   posts: string;
   health: "Healthy" | "Needs attention";
   color: "coral" | "lilac" | "moss";
+  images?: string[];
+  profileImage?: string;
+  bannerImage?: string;
 };
 
 const initialCommunities: Community[] = [
@@ -135,8 +148,9 @@ const initialCommunities: Community[] = [
 ];
 
 const platforms = ["WhatsApp", "Telegram", "Facebook", "Discord", "Other"];
+const MAX_COMMUNITY_IMAGES = 15;
 
-function readCommunities() {
+export function readCommunities() {
   try {
     const saved = window.localStorage.getItem("relay-communities");
     if (!saved) return initialCommunities;
@@ -270,19 +284,55 @@ function useCommunities() {
       cancelled = true;
     };
   }, []);
-  return { items, loaded };
+  const updateCommunity = (slug: string, patch: Partial<Community>) => {
+    const next = items.map((item) =>
+      item.slug === slug ? { ...item, ...patch } : item,
+    );
+    if (!relayBackendEnabled()) {
+      try {
+        window.localStorage.setItem("relay-communities", JSON.stringify(next));
+      } catch {
+        return false;
+      }
+    }
+    setItems(next);
+    return true;
+  };
+  return { items, loaded, updateCommunity };
 }
 
-function PlatformMark({
+const platformBrands: Record<string, { icon: IconType; color: string }> = {
+  telegram: { icon: FaTelegramPlane, color: "#26a5e4" },
+  whatsapp: { icon: FaWhatsapp, color: "#25d366" },
+  facebook: { icon: FaFacebookF, color: "#1877f2" },
+  discord: { icon: FaDiscord, color: "#5865f2" },
+};
+
+export function PlatformMark({
   platform,
   color,
 }: {
   platform: string;
   color: string;
 }) {
+  const brand = platformBrands[platform.toLowerCase()];
+  if (!brand) {
+    return (
+      <span className={`community-platform-mark community-platform-${color}`}>
+        {platform.slice(0, 1)}
+      </span>
+    );
+  }
+  const Icon = brand.icon;
   return (
-    <span className={`community-platform-mark community-platform-${color}`}>
-      {platform.slice(0, 1)}
+    <span
+      className={`community-platform-mark community-platform-${color}`}
+      style={{ background: brand.color }}
+      role="img"
+      aria-label={platform}
+      title={platform}
+    >
+      <Icon size={20} color="#ffffff" aria-hidden="true" />
     </span>
   );
 }
@@ -506,8 +556,35 @@ export function CommunityDetail() {
   const { format } = useCurrency();
   const [, params] = useRoute<{ slug: string }>("/communities/:slug");
   const slug = params?.slug ?? "after-hours";
-  const { items, loaded } = useCommunities();
+  const { items, loaded, updateCommunity } = useCommunities();
   const [verificationOpen, setVerificationOpen] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageMessage, setImageMessage] = useState("");
+  const [coverMessage, setCoverMessage] = useState("");
+  const [dialogTarget, setDialogTarget] = useState<"profile" | "banner" | null>(
+    null,
+  );
+  const [dialogTab, setDialogTab] = useState<"device" | "url" | "gallery">(
+    "device",
+  );
+  const [urlInput, setUrlInput] = useState("");
+  useEffect(() => {
+    if (!dialogTarget) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDialogTarget(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dialogTarget]);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  useEffect(() => {
+    if (!galleryOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setGalleryOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [galleryOpen]);
   const community =
     items.find((item) => item.slug === slug) ??
     (relayBackendEnabled() ? undefined : initialCommunities[0]);
@@ -532,6 +609,148 @@ export function CommunityDetail() {
   const clicks = parseAudience(community.clicks);
   const completed = relayBackendEnabled() ? 0 : 4;
   const averageClicks = completed ? Math.round(clicks / completed) : 0;
+  const galleryImages = community.images ?? [];
+  const addGalleryImages = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setImageMessage("");
+    const room = MAX_COMMUNITY_IMAGES - galleryImages.length;
+    if (room <= 0) {
+      setImageMessage(`You can have up to ${MAX_COMMUNITY_IMAGES} images.`);
+      return;
+    }
+    const total = files.length;
+    const picked = Array.from(files).slice(0, room);
+    setImageBusy(true);
+    const added: string[] = [];
+    let failed = 0;
+    for (const file of picked) {
+      try {
+        added.push(await compressImageToDataUrl(file));
+      } catch {
+        failed += 1;
+      }
+    }
+    setImageBusy(false);
+    if (added.length > 0) {
+      const saved = updateCommunity(community.slug, {
+        images: [...galleryImages, ...added],
+      });
+      if (!saved) {
+        setImageMessage(
+          "Browser storage is full, so these images could not be saved. Remove some images and try again.",
+        );
+        return;
+      }
+    }
+    const skipped = total - picked.length;
+    const parts: string[] = [];
+    if (failed > 0)
+      parts.push(`${failed} could not be added (not an image, or over 8MB)`);
+    if (skipped > 0)
+      parts.push(
+        `${skipped} skipped because of the ${MAX_COMMUNITY_IMAGES} image limit`,
+      );
+    if (parts.length > 0) setImageMessage(parts.join(". ") + ".");
+  };
+  const removeGalleryImage = (index: number) => {
+    const saved = updateCommunity(community.slug, {
+      images: galleryImages.filter((_, i) => i !== index),
+    });
+    if (!saved) setImageMessage("Could not save this change. Please try again.");
+  };
+  const setCoverImage = (
+    target: "profile" | "banner",
+    value: string | undefined,
+  ) => {
+    const saved = updateCommunity(
+      community.slug,
+      target === "profile" ? { profileImage: value } : { bannerImage: value },
+    );
+    if (!saved) {
+      setCoverMessage(
+        "Browser storage is full, so this change could not be saved. Remove some images and try again.",
+      );
+      return;
+    }
+    setCoverMessage("");
+    setDialogTarget(null);
+  };
+  const uploadCoverImage = async (
+    target: "profile" | "banner",
+    files: FileList | null,
+  ) => {
+    const file = files?.[0];
+    if (!file) return;
+    setCoverMessage("");
+    setImageBusy(true);
+    try {
+      const dataUrl = await compressImageToDataUrl(
+        file,
+        target === "banner" ? 1200 : 400,
+      );
+      setCoverImage(target, dataUrl);
+    } catch (error) {
+      setCoverMessage(
+        error instanceof Error ? error.message : "Could not add this image.",
+      );
+    }
+    setImageBusy(false);
+  };
+  const openImageDialog = (target: "profile" | "banner") => {
+    setCoverMessage("");
+    setUrlInput("");
+    setDialogTab("device");
+    setDialogTarget(target);
+  };
+  const closeImageDialog = () => {
+    setDialogTarget(null);
+    setCoverMessage("");
+  };
+  const switchDialogTab = (tab: "device" | "url" | "gallery") => {
+    setDialogTab(tab);
+    setCoverMessage("");
+  };
+  const applyImageUrl = () => {
+    if (!dialogTarget) return;
+    const value = urlInput.trim();
+    if (!/^https?:\/\//i.test(value)) {
+      setCoverMessage("Please enter a link that starts with http:// or https://");
+      return;
+    }
+    setImageBusy(true);
+    setCoverMessage("");
+    const probe = new Image();
+    probe.onload = () => {
+      setImageBusy(false);
+      setCoverImage(dialogTarget, value);
+    };
+    probe.onerror = () => {
+      setImageBusy(false);
+      setCoverMessage(
+        "That link could not be loaded as an image. Check the link and try again.",
+      );
+    };
+    probe.src = value;
+  };
+  const dialogCurrent =
+    dialogTarget === "profile"
+      ? community.profileImage
+      : dialogTarget === "banner"
+        ? community.bannerImage
+        : undefined;
+  const cameraButtonStyle: React.CSSProperties = {
+    position: "absolute",
+    width: 34,
+    height: 34,
+    display: "grid",
+    placeItems: "center",
+    padding: 0,
+    border: "none",
+    borderRadius: "50%",
+    cursor: "pointer",
+    color: "#fff",
+    background: "rgba(0,0,0,0.65)",
+  };
   return (
     <WorkspaceShell active="My Communities">
       <div className="dashboard-body community-detail-page">
@@ -609,7 +828,311 @@ export function CommunityDetail() {
         </div>
         <div className="detail-content-grid">
           <main>
+           
+
+
+ <section className="owner-section">
+              <div className="section-heading">
+                <div>
+                  <div className="section-kicker">
+                    <span className="section-kicker-line" /> Community branding
+                  </div>
+                  <h2>Profile image and banner</h2>
+                </div>
+              </div>
+              <div style={{ position: "relative", marginBottom: 56 }}>
+                <div
+                  style={{
+                    width: "100%",
+                    height: 160,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    background: "rgba(128,128,128,0.18)",
+                  }}
+                >
+                  {community.bannerImage && (
+                    <img
+                      src={community.bannerImage}
+                      alt={`${community.name} banner`}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                    />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openImageDialog("banner")}
+                  aria-label="Change banner image"
+                  title="Change banner image"
+                  style={{ ...cameraButtonStyle, top: 10, right: 10 }}
+                >
+                  <Camera size={16} />
+                </button>
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 16,
+                    bottom: -44,
+                    width: 88,
+                    height: 88,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      border: "4px solid var(--surface)",
+                      background: "rgba(128,128,128,0.35)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 30,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {community.profileImage ? (
+                      <img
+                        src={community.profileImage}
+                        alt={`${community.name} profile`}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    ) : (
+                      community.name.slice(0, 1)
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openImageDialog("profile")}
+                    aria-label="Change profile image"
+                    title="Change profile image"
+                    style={{
+                      ...cameraButtonStyle,
+                      width: 30,
+                      height: 30,
+                      right: -4,
+                      bottom: 0,
+                    }}
+                  >
+                    <Camera size={14} />
+                  </button>
+                </div>
+              </div>
+              <small className="field-optional">
+                Click the camera icon on the banner or the profile picture to
+                change it.
+              </small>
+              {dialogTarget && (
+                <div
+                  className="dialog-backdrop"
+                  onClick={(event) => {
+                    if (event.target === event.currentTarget)
+                      closeImageDialog();
+                  }}
+                >
+                  <div
+                    className="community-dialog"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={
+                      dialogTarget === "profile"
+                        ? "Change profile image"
+                        : "Change banner image"
+                    }
+                  >
+                    <button
+                      type="button"
+                      className="dialog-close"
+                      onClick={closeImageDialog}
+                      aria-label="Close"
+                      style={{ display: "grid", placeItems: "center" }}
+                    >
+                      <X size={16} />
+                    </button>
+                    <h2 style={{ fontSize: 22, margin: "0 0 6px" }}>
+                      {dialogTarget === "profile"
+                        ? "Profile image"
+                        : "Banner image"}
+                    </h2>
+                    <p className="dialog-intro">
+                      Choose how you want to add it.
+                    </p>
+                    <div className="community-view-toggle" role="tablist">
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={dialogTab === "device"}
+                        className={dialogTab === "device" ? "view-toggle-active" : ""}
+                        onClick={() => switchDialogTab("device")}
+                      >
+                        <Upload size={14} /> Device
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={dialogTab === "url"}
+                        className={dialogTab === "url" ? "view-toggle-active" : ""}
+                        onClick={() => switchDialogTab("url")}
+                      >
+                        <Link2 size={14} /> Link
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={dialogTab === "gallery"}
+                        className={dialogTab === "gallery" ? "view-toggle-active" : ""}
+                        onClick={() => switchDialogTab("gallery")}
+                      >
+                        <LayoutGrid size={14} /> Gallery
+                      </button>
+                    </div>
+                    {dialogTab === "device" && (
+                      <label className="proof-upload" style={{ marginTop: 16 }}>
+                        <span
+                          className="file-input-shell"
+                          style={{ minHeight: 110, justifyContent: "center" }}
+                        >
+                          <Upload size={15} />{" "}
+                          <span>
+                            {imageBusy
+                              ? "Processing image..."
+                              : "Click to choose an image from your device"}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={imageBusy}
+                            onChange={(event) => {
+                              void uploadCoverImage(
+                                dialogTarget,
+                                event.target.files,
+                              );
+                              event.target.value = "";
+                            }}
+                          />
+                        </span>
+                      </label>
+                    )}
+                    {dialogTab === "url" && (
+                      <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+                        <label>
+                          Image link
+                          <input
+                            type="url"
+                            value={urlInput}
+                            placeholder="https://example.com/photo.jpg"
+                            onChange={(event) => setUrlInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                applyImageUrl();
+                              }
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="accept-button"
+                          disabled={imageBusy || !urlInput.trim()}
+                          onClick={applyImageUrl}
+                        >
+                          {imageBusy ? "Checking link..." : "Use this link"}
+                        </button>
+                      </div>
+                    )}
+                    {dialogTab === "gallery" && (
+                      <div style={{ marginTop: 16 }}>
+                        {galleryImages.length === 0 ? (
+                          <p>
+                            No gallery images yet. Add some in the Community
+                            images card first, or use another option.
+                          </p>
+                        ) : (
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns:
+                                "repeat(auto-fill, minmax(84px, 1fr))",
+                              gap: 8,
+                              maxHeight: 260,
+                              overflowY: "auto",
+                            }}
+                          >
+                            {galleryImages.map((src, index) => (
+                              <button
+                                type="button"
+                                key={index}
+                                onClick={() => setCoverImage(dialogTarget, src)}
+                                aria-label={`Use image ${index + 1}`}
+                                style={{
+                                  padding: 0,
+                                  border:
+                                    src === dialogCurrent
+                                      ? "3px solid var(--coral)"
+                                      : "3px solid transparent",
+                                  borderRadius: 10,
+                                  overflow: "hidden",
+                                  cursor: "pointer",
+                                  background: "none",
+                                }}
+                              >
+                                <img
+                                  src={src}
+                                  alt={`Gallery image ${index + 1}`}
+                                  style={{
+                                    width: "100%",
+                                    aspectRatio: "1 / 1",
+                                    objectFit: "cover",
+                                    display: "block",
+                                  }}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {coverMessage && (
+                      <p role="alert" style={{ marginTop: 12 }}>
+                        {coverMessage}
+                      </p>
+                    )}
+                    {dialogCurrent && (
+                      <button
+                        type="button"
+                        onClick={() => setCoverImage(dialogTarget, undefined)}
+                        style={{
+                          marginTop: 14,
+                          padding: 0,
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          textDecoration: "underline",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Remove current image
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+
+
             <section className="owner-section audience-overview">
+
+
               <div className="section-heading">
                 <div>
                   <div className="section-kicker">
@@ -656,6 +1179,29 @@ export function CommunityDetail() {
                 </div>
               </div>
             </section>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
+
+
+
+
+
+
+
             <section className="owner-section">
               <div className="section-heading">
                 <div>
@@ -786,6 +1332,150 @@ export function CommunityDetail() {
                 <ShieldCheck size={17} /> {community.verification}
               </div>
             </section>
+
+
+
+
+
+
+
+            <section className="insight-card">
+              <span className="insight-kicker">Community images</span>
+              <h2>
+                {galleryImages.length} of {MAX_COMMUNITY_IMAGES}
+              </h2>
+              <p>
+                {galleryImages.length === 0
+                  ? "No images yet. Add photos so advertisers can see what this community looks like."
+                  : "Photos advertisers can see for this community."}
+              </p>
+              <button
+                type="button"
+                className="accept-button"
+                onClick={() => {
+                  setImageMessage("");
+                  setGalleryOpen(true);
+                }}
+              >
+                View gallery
+              </button>
+            </section>
+
+
+
+
+            {galleryOpen && (
+              <div
+                className="dialog-backdrop"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget)
+                    setGalleryOpen(false);
+                }}
+              >
+                <div
+                  className="community-dialog"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Community images"
+                  style={{
+                    width: "70vw",
+                    height: "70vh",
+                    minWidth: "min(100%, 340px)",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="dialog-close"
+                    onClick={() => setGalleryOpen(false)}
+                    aria-label="Close"
+                    style={{ display: "grid", placeItems: "center" }}
+                  >
+                    <X size={16} />
+                  </button>
+                  <h2 style={{ fontSize: 22, margin: "0 0 6px" }}>
+                    Community images
+                  </h2>
+                  <p className="dialog-intro">
+                    {galleryImages.length} of {MAX_COMMUNITY_IMAGES} images. Add
+                    photos so advertisers can see what this community looks
+                    like.
+                  </p>
+                  {galleryImages.length === 0 ? (
+                    <p>No images yet.</p>
+                  ) : (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fill, minmax(120px, 1fr))",
+                        gap: 10,
+                      }}
+                    >
+                      {galleryImages.map((src, index) => (
+                        <div key={index} style={{ position: "relative" }}>
+                          <img
+                            src={src}
+                            alt={`${community.name} image ${index + 1}`}
+                            style={{
+                              width: "100%",
+                              aspectRatio: "1 / 1",
+                              objectFit: "cover",
+                              borderRadius: 8,
+                              display: "block",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeGalleryImage(index)}
+                            aria-label={`Remove image ${index + 1}`}
+                            style={{
+                              position: "absolute",
+                              top: 4,
+                              right: 4,
+                              border: "none",
+                              borderRadius: 4,
+                              padding: "2px 6px",
+                              fontSize: 11,
+                              cursor: "pointer",
+                              background: "rgba(0,0,0,0.65)",
+                              color: "#fff",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <label className="proof-upload" style={{ marginTop: 16 }}>
+                    <span className="file-input-shell">
+                      <Upload size={15} />{" "}
+                      <span>
+                        {imageBusy ? "Processing images..." : "Add images"}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        disabled={
+                          imageBusy ||
+                          galleryImages.length >= MAX_COMMUNITY_IMAGES
+                        }
+                        onChange={(event) => {
+                          void addGalleryImages(event.target.files);
+                          event.target.value = "";
+                        }}
+                      />
+                    </span>
+                  </label>
+                  {imageMessage && (
+                    <p role="alert" style={{ marginTop: 12 }}>
+                      {imageMessage}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </aside>
         </div>
       </div>

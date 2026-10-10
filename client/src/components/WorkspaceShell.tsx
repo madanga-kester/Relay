@@ -12,8 +12,10 @@ import {
   DollarSign,
   FilePlus2,
   LayoutDashboard,
+  Megaphone,
   Menu,
   Settings,
+  TrendingUp,
   UsersRound,
 } from "lucide-react";
 import ProfileMenu from "@/components/ProfileMenu";
@@ -100,7 +102,7 @@ const communityOwnerNavLayout: NavLayoutEntry[] = [
     kind: "group",
     id: "community-owner-campaigns",
     label: "Campaigns",
-    icon: ClipboardList,
+    icon: Megaphone,
     labels: ["Campaigns", "Accepted Campaigns"],
   },
   { kind: "item", label: "My Communities" },
@@ -108,7 +110,7 @@ const communityOwnerNavLayout: NavLayoutEntry[] = [
     kind: "group",
     id: "community-owner-insights",
     label: "Insights",
-    icon: BarChart3,
+    icon: TrendingUp,
     labels: ["Performance", "Earnings", "Activity"],
   },
   { kind: "item", label: "Notifications" },
@@ -121,14 +123,14 @@ const campaignOwnerNavLayout: NavLayoutEntry[] = [
     kind: "group",
     id: "campaign-owner-campaigns",
     label: "Campaigns",
-    icon: ClipboardList,
+    icon: Megaphone,
     labels: ["My Campaigns", "Create Campaign", "Applications", "Active Placements"],
   },
   {
     kind: "group",
     id: "campaign-owner-insights",
     label: "Insights",
-    icon: BarChart3,
+    icon: TrendingUp,
     labels: ["Performance", "Activity"],
   },
   { kind: "item", label: "Billing" },
@@ -414,7 +416,15 @@ export default function WorkspaceShell({
       : "/";
 
   const [campaignsOpen, setCampaignsOpen] = useState(true);
-    const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+    const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+  try {
+    const raw = localStorage.getItem("ownerboard-nav-open-groups");
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+});
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -445,7 +455,15 @@ export default function WorkspaceShell({
       : legacyNavLayout;
 
   const toggleNavGroup = (id: string, currentlyExpanded: boolean) =>
-    setOpenGroups((groups) => ({ ...groups, [id]: !currentlyExpanded }));
+  setOpenGroups((groups) => {
+    const next = { ...groups, [id]: !currentlyExpanded };
+    try {
+      localStorage.setItem("ownerboard-nav-open-groups", JSON.stringify(next));
+    } catch {
+      /* storage unavailable, state still updates in memory */
+    }
+    return next;
+  });
 
   const renderNavLink = ({ href, label, icon: Icon, emphasis }: NavItemDef) => (
     <Link
@@ -460,7 +478,6 @@ export default function WorkspaceShell({
     >
       <Icon size={17} />
       <span>{label}</span>
-      {active === label && <span className="nav-active-dot" />}
     </Link>
   );
 

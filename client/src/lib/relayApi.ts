@@ -743,4 +743,15 @@ export async function getRelayActivity(limit = 30) {
   return relayRequest<RelayActivityEvent[]>(`/activity?limit=${limit}`);
 }
 
+export type RelayPreferences = { values: Record<string, unknown> };
 
+export async function getRelayPreferences() {
+  return relayRequest<RelayPreferences>("/preferences");
+}
+
+export async function saveRelayPreferences(values: Record<string, string | boolean>) {
+  return relayRequest<RelayPreferences>("/preferences", {
+    method: "PUT",
+    body: JSON.stringify({ values }),
+  });
+}

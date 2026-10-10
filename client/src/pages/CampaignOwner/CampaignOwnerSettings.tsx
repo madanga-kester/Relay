@@ -19,10 +19,15 @@ import { Link } from "wouter";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { useTheme } from "@/contexts/ThemeContext";
 import { CURRENCY_OPTIONS, useCurrency } from "@/lib/currency";
+import { toast } from "sonner";
 import {
+  getRelayPreferences,
   getRelayProfile,
+  getRelaySession,
   relayBackendEnabled,
+  saveRelayPreferences,
   saveRelayProfile,
+  type RelayProfile,
 } from "@/lib/relayApi";
 
 type CampaignOwnerSettingsState = {
@@ -73,7 +78,7 @@ const settingsSections: {
   { id: "api", label: "API & Integrations", icon: <Key size={16} /> },
 ];
 
-const defaults: CampaignOwnerSettingsState = {
+const demoDefaults: CampaignOwnerSettingsState = {
   name: "Njeri Kamau",
   email: "njeri@relay.local",
   defaultDuration: "7 days",
@@ -91,19 +96,81 @@ const defaults: CampaignOwnerSettingsState = {
   webhookUrl: "https://api.relay.local/webhooks/campaigns",
 };
 
+const liveDefaults: CampaignOwnerSettingsState = {
+  ...demoDefaults,
+  name: "",
+  email: "",
+  teamName: "",
+  taxId: "",
+  billingEmail: "",
+  apiKey: "",
+  webhookUrl: "",
+};
+
+const defaults = relayBackendEnabled() ? liveDefaults : demoDefaults;
+
+const accountKeys = [
+  "defaultDuration",
+  "defaultPlatform",
+  "applicationAlerts",
+  "billingAlerts",
+  "emailDigest",
+  "browserNotifications",
+  "marketingEmails",
+  "teamName",
+  "taxId",
+  "billingEmail",
+  "webhookUrl",
+] as const;
+
+function pickAccountPreferences(settings: CampaignOwnerSettingsState) {
+  const values: Record<string, string | boolean> = {};
+  accountKeys.forEach((key) => {
+    values[key] = settings[key];
+  });
+  return values;
+}
+
+function applyAccountPreferences(
+  values: Record<string, unknown>
+): Partial<CampaignOwnerSettingsState> {
+  const result: Record<string, string | boolean> = {};
+  accountKeys.forEach((key) => {
+    const value = values[key];
+    if (typeof value === typeof defaults[key]) {
+      result[key] = value as string | boolean;
+    }
+  });
+  return result as Partial<CampaignOwnerSettingsState>;
+}
+
 function readSettings(): CampaignOwnerSettingsState {
   try {
-    return {
-      ...defaults,
-      ...JSON.parse(window.localStorage.getItem(settingsKey) ?? "{}"),
-    };
+    const stored = JSON.parse(window.localStorage.getItem(settingsKey) ?? "{}");
+    if (relayBackendEnabled()) {
+      return {
+        ...defaults,
+        apiKey:
+          typeof stored.apiKey === "string" && stored.apiKey !== demoDefaults.apiKey
+            ? stored.apiKey
+            : defaults.apiKey,
+        inviteEmail:
+          typeof stored.inviteEmail === "string"
+            ? stored.inviteEmail
+            : defaults.inviteEmail,
+      };
+    }
+    return { ...defaults, ...stored };
   } catch {
     return defaults;
   }
 }
 
 function saveSettings(settings: CampaignOwnerSettingsState) {
-  window.localStorage.setItem(settingsKey, JSON.stringify(settings));
+  const stored = relayBackendEnabled()
+    ? { apiKey: settings.apiKey, inviteEmail: settings.inviteEmail }
+    : settings;
+  window.localStorage.setItem(settingsKey, JSON.stringify(stored));
   window.dispatchEvent(
     new CustomEvent("ownerboard:campaign-owner-settings-updated")
   );
@@ -116,29 +183,47 @@ export default function CampaignOwnerSettings() {
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<SettingsSection>("workspace");
-
+  const [profile, setProfile] = useState<RelayProfile | null>(null);
+  const [loaded, setLoaded] = useState(!relayBackendEnabled());
   useEffect(() => {
-    const refresh = () => setSettings(readSettings());
+    const refresh = () => {
+      if (!relayBackendEnabled()) setSettings(readSettings());
+    };
     refresh();
 
+    let cancelled = false;
     if (relayBackendEnabled()) {
-      void getRelayProfile()
-        .then((profile) => {
-          if (profile.businessName) {
-            setSettings((current) => ({
-              ...current,
-              name: profile.businessName ?? current.name,
-              email: current.email,
-            }));
+      void (async () => {
+        try {
+          const [session, loadedProfile, preferences] = await Promise.all([
+            getRelaySession(),
+            getRelayProfile(),
+            getRelayPreferences(),
+          ]);
+          if (cancelled) return;
+          setProfile(loadedProfile);
+          setSettings((current) => ({
+            ...current,
+            ...applyAccountPreferences(preferences.values),
+            name: loadedProfile.businessName || session.displayName,
+            email: session.email,
+          }));
+          setLoaded(true);
+        } catch {
+          if (!cancelled) {
+            toast.error("Could not load your settings", {
+              description: "Check that the API is running, then refresh the page.",
+            });
           }
-        })
-        .catch(() => undefined);
+        }
+      })();
     }
 
     window.addEventListener("storage", refresh);
     window.addEventListener("ownerboard:campaign-owner-settings-updated", refresh);
 
     return () => {
+      cancelled = true;
       window.removeEventListener("storage", refresh);
       window.removeEventListener("ownerboard:campaign-owner-settings-updated", refresh);
     };
@@ -156,13 +241,38 @@ export default function CampaignOwnerSettings() {
     setIsSaving(true);
     saveSettings(settings);
     if (relayBackendEnabled()) {
+      if (!profile) {
+        toast.error("Settings could not be saved", {
+          description: "Your profile has not loaded yet. Refresh the page and try again.",
+        });
+        setIsSaving(false);
+        return;
+      }
       try {
         await saveRelayProfile({
           businessName: settings.name,
+          industry: profile.industry ?? undefined,
+          website: profile.website ?? undefined,
+          location: profile.location ?? undefined,
+          primaryGoal: profile.primaryGoal ?? undefined,
+          phoneNumber: profile.phoneNumber ?? undefined,
+          avatarKey: profile.avatarKey ?? undefined,
           onboardingCompleted: true,
+          communityName: profile.communityName ?? undefined,
+          communityPlatform: profile.communityPlatform ?? undefined,
+          communityMembers: profile.communityMembers ?? undefined,
+          communityCategory: profile.communityCategory ?? undefined,
         });
-      } catch {
-        /* Local settings remain available if backend is unavailable. */
+        await saveRelayPreferences(pickAccountPreferences(settings));
+        setProfile((current) =>
+          current ? { ...current, businessName: settings.name } : current
+        );
+      } catch (error) {
+        toast.error("Settings could not be saved", {
+          description: error instanceof Error ? error.message : "Try again.",
+        });
+        setIsSaving(false);
+        return;
       }
     }
     setIsSaving(false);
@@ -221,7 +331,9 @@ export default function CampaignOwnerSettings() {
                   <div>
                     <h2>Workspace preferences</h2>
                     <p>
-                      These settings are stored locally for this Campaign Owner workspace.
+                      {relayBackendEnabled()
+                        ? "These settings are saved to your account."
+                        : "These settings are stored locally for this Campaign Owner workspace."}
                     </p>
                   </div>
                 </div>
@@ -292,7 +404,11 @@ export default function CampaignOwnerSettings() {
                   </span>
                   <div>
                     <h2>Campaign Owner profile</h2>
-                    <p>Update the local profile details shown in this workspace.</p>
+                    <p>
+                      {relayBackendEnabled()
+                        ? "Update the profile details shown in this workspace."
+                        : "Update the local profile details shown in this workspace."}
+                    </p>
                   </div>
                 </div>
 
@@ -309,6 +425,7 @@ export default function CampaignOwnerSettings() {
                     <input
                       type="email"
                       value={settings.email}
+                      readOnly={relayBackendEnabled()}
                       onChange={(event) => update("email", event.target.value)}
                     />
                   </label>
@@ -513,14 +630,14 @@ export default function CampaignOwnerSettings() {
               <button
                 className="primary-owner-button"
                 type="button"
-                disabled={isSaving}
+                disabled={isSaving || !loaded}
                 onClick={save}
               >
                 {isSaving ? <Loader2 size={15} className="spin" /> : <Save size={15} />} Save settings
               </button>
               {saved && (
                 <span className="campaign-owner-settings-saved">
-                  <CheckCircle2 size={14} /> Settings saved locally
+                  <CheckCircle2 size={14} /> {relayBackendEnabled() ? "Settings saved" : "Settings saved locally"}
                 </span>
               )}
             </div>

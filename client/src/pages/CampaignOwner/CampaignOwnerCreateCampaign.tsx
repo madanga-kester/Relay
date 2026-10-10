@@ -13,6 +13,9 @@ import {
 } from "lucide-react";
 
 import { toast } from "sonner";
+import { Eye, ImagePlus, X } from "lucide-react";
+import { compressImageToDataUrl } from "@/lib/imageUtils";
+import { AD_PREVIEW_KEY } from "./CampaignOwnerAdPreview";
 
 import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "wouter";
@@ -38,10 +41,13 @@ const categoryOptions = [
   "Health & wellness",
 ];
 
+type CampaignMedia = { mediaImage?: string; mediaVideoUrl?: string };
+
 type FormState = Omit<
   CampaignRecord,
   "id" | "status" | "applications" | "placements" | "clicks"
->;
+> &
+  CampaignMedia;
 
 const emptyForm: FormState = {
   name: "",
@@ -137,6 +143,8 @@ export default function CampaignOwnerCreateCampaign() {
           budget: existingDraft.budget,
           startDate: existingDraft.startDate,
           endDate: existingDraft.endDate,
+          mediaImage: (existingDraft as CampaignRecord & CampaignMedia).mediaImage,
+          mediaVideoUrl: (existingDraft as CampaignRecord & CampaignMedia).mediaVideoUrl,
         }
       : emptyForm,
   );
@@ -144,7 +152,32 @@ export default function CampaignOwnerCreateCampaign() {
   const [published, setPublished] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const editingDraft = Boolean(existingDraft);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaError, setMediaError] = useState("");
 
+  const attachImage = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setMediaError("");
+    setMediaBusy(true);
+    try {
+      const dataUrl = await compressImageToDataUrl(file, 1200);
+      setForm((current) => ({ ...current, mediaImage: dataUrl }));
+    } catch (error) {
+      setMediaError(
+        error instanceof Error ? error.message : "Could not add this image.",
+      );
+    }
+    setMediaBusy(false);
+  };
+
+  const removeImage = () => {
+    setMediaError("");
+    setForm((current) => ({ ...current, mediaImage: undefined }));
+  };
+
+  const videoUrlValid =
+    !form.mediaVideoUrl || /^https?:\/\//i.test(form.mediaVideoUrl.trim());
   const update = <K extends keyof FormState>(
     key: K,
     value: FormState[K],
@@ -164,6 +197,39 @@ export default function CampaignOwnerCreateCampaign() {
   const numericValue = (value: string) =>
     Number(value.replace(/[^0-9.]/g, "")) || 0;
 
+  const openPreview = () => {
+    try {
+      window.localStorage.setItem(
+        AD_PREVIEW_KEY,
+        JSON.stringify({
+          name: form.name,
+          advertiser: form.advertiser,
+          advertisement: form.advertisement,
+          destinationUrl: form.destinationUrl,
+          platforms: form.platforms,
+          mediaImage: form.mediaImage,
+          mediaVideoUrl: form.mediaVideoUrl,
+          description: form.description,
+          category: form.category,
+          location: form.location,
+          minAudience: form.minAudience,
+          maxAudience: form.maxAudience,
+          duration: form.duration,
+          maxCommunities: form.maxCommunities,
+          cpc: form.cpc,
+          budget: form.budget,
+          startDate: form.startDate,
+          endDate: form.endDate,
+        }),
+      );
+    } catch {
+      toast.error("Preview could not be prepared", {
+        description: "Browser storage is full. Remove the image or free some space, then try again.",
+      });
+      return;
+    }
+    window.open("/campaign-owner/ad-preview", "relay-ad-preview");
+  };
   const { advertiserCpc, platformFee, communityOwnerCpc } =
     getCpcBreakdown(form.cpc);
 
@@ -188,7 +254,8 @@ export default function CampaignOwnerCreateCampaign() {
       form.endDate &&
       form.platforms.length &&
       advertiserCpc > 0 &&
-      numericValue(form.budget) > 0,
+      numericValue(form.budget) > 0 &&
+      videoUrlValid,
   );
 
   const missingFields = [
@@ -213,6 +280,9 @@ export default function CampaignOwnerCreateCampaign() {
   if (form.cpc && advertiserCpc <= 0) missingFields.push("a CPC above zero");
   if (form.budget && numericValue(form.budget) <= 0) {
     missingFields.push("a budget above zero");
+  }
+  if (!videoUrlValid) {
+    missingFields.push("a video link starting with http:// or https://");
   }
 
   const publish = async (event: FormEvent) => {
@@ -407,6 +477,79 @@ export default function CampaignOwnerCreateCampaign() {
                     required
                   />
                 </div>
+
+
+                
+                <div className="composer-field full">
+                  <label htmlFor="campaign-image">Advertisement image (optional)</label>
+                  <input
+                    id="campaign-image"
+                    type="file"
+                    accept="image/*"
+                    disabled={mediaBusy}
+                    onChange={(event) => {
+                      void attachImage(event.target.files);
+                      event.target.value = "";
+                    }}
+                  />
+                  {mediaBusy && <small className="composer-helper">Processing image...</small>}
+                  {mediaError && <small role="alert" className="composer-helper">{mediaError}</small>}
+                  {form.mediaImage && (
+                    <div style={{ position: "relative", marginTop: 10, maxWidth: 360 }}>
+                      <img
+                        src={form.mediaImage}
+                        alt="Advertisement preview"
+                        style={{ width: "100%", borderRadius: 10, display: "block" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        aria-label="Remove image"
+                        title="Remove image"
+                        style={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          width: 28,
+                          height: 28,
+                          display: "grid",
+                          placeItems: "center",
+                          padding: 0,
+                          border: "none",
+                          borderRadius: "50%",
+                          cursor: "pointer",
+                          color: "#fff",
+                          background: "rgba(0,0,0,0.65)",
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                  {!form.mediaImage && !mediaBusy && (
+                    <small className="composer-helper">
+                      <ImagePlus size={12} /> One image that Community Owners will post with your text.
+                    </small>
+                  )}
+                </div>
+
+                <div className="composer-field full">
+                  <label htmlFor="campaign-video-url">Advertisement video link (optional)</label>
+                  <input
+                    id="campaign-video-url"
+                    type="url"
+                    value={form.mediaVideoUrl ?? ""}
+                    onChange={(event) => update("mediaVideoUrl", event.target.value)}
+                    onBlur={(event) => update("mediaVideoUrl", event.target.value.trim())}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                  />
+                  <small className="composer-helper">
+                    Paste a link to a video hosted elsewhere, such as YouTube. Video files are not uploaded here.
+                  </small>
+                </div>
+
+
+        
               </div>
             </section>
 
@@ -574,22 +717,43 @@ export default function CampaignOwnerCreateCampaign() {
                   : relayBackendEnabled() ? "Your campaign will be saved to your account when you publish." : "Your campaign is saved locally in this development workspace."}
               </span>
 
-              <button
-                className="composer-submit"
-                type="submit"
-                disabled={!canPublish || submitting}
-              >
-                <Send size={15} />
-                {published
-                  ? editingDraft
-                    ? "Draft Saved"
-                    : "Published"
-                  : submitting
-                    ? "Publishing..."
-                    : editingDraft
-                      ? "Save Draft"
-                      : "Publish Campaign"}
-              </button>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={openPreview}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    padding: "10px 16px",
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    background: "transparent",
+                    color: "inherit",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  <Eye size={15} /> View ad preview
+                </button>
+                <button
+                  className="composer-submit"
+                  type="submit"
+                  disabled={!canPublish || submitting}
+                >
+                  <Send size={15} />
+                  {published
+                    ? editingDraft
+                      ? "Draft Saved"
+                      : "Published"
+                    : submitting
+                      ? "Publishing..."
+                      : editingDraft
+                        ? "Save Draft"
+                        : "Publish Campaign"}
+                </button>
+              </div>
             </div>
           </main>
 
@@ -612,6 +776,13 @@ export default function CampaignOwnerCreateCampaign() {
               <strong>{form.name || "Your campaign name"}</strong>
               <em>{form.advertiser || "Business / advertiser"}</em>
               <p>{form.description || "Your campaign description will appear here."}</p>
+              {form.mediaImage && (
+                <img
+                  src={form.mediaImage}
+                  alt="Advertisement preview"
+                  style={{ width: "100%", borderRadius: 8, marginTop: 10, display: "block" }}
+                />
+              )}
             </div>
 
             <dl className="composer-summary-list">

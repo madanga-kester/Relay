@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ApplicationStatus, CampaignOwnerApplication, ensureTrackingId, formatMoney, getCpcBreakdown, readApplications, registerTrackingPlacement, saveApplications } from "./applicationData";
 import { CampaignRecord, readCampaigns } from "./campaignData";
 import { recordAdminActivity } from "@/data/marketplaceData";
+import { PlatformMark, readCommunities } from "@/pages/OwnerPages";
 import { getRelayBackendId, listMyRelayCampaigns, listRelayApplications, listRelayCommunities, relayBackendEnabled, reviewRelayApplication, setRelayBackendId, type RelayCampaign, type RelayCommunity } from "@/lib/relayApi";
 
 function statusClass(status: ApplicationStatus) {
@@ -144,7 +145,7 @@ function ApplicationCard({ application, onDecide, onView }: { application: Campa
   const isPending = application.status === "Pending";
   return <article className={`campaign-application-card ${!isPending ? "campaign-application-card-decided" : ""}`}>
     <div className="campaign-application-card-header"><div className="campaign-application-campaign"><span className="campaign-application-campaign-mark">{application.campaign.charAt(0)}</span><span><small>Campaign</small><strong>{application.campaign}</strong></span></div><span className={statusClass(application.status)}><span /> {application.status}</span></div>
-    <div className="campaign-application-community"><div className="campaign-application-avatar">{application.community.charAt(0)}</div><div><span className="section-kicker"><span className="section-kicker-line" /> Community</span><h3>{application.community}</h3><p>{application.applied} · {application.platform} application</p></div></div>
+    <div className="campaign-application-community"><PlatformMark platform={application.platform} color="coral" /><div><span className="section-kicker"><span className="section-kicker-line" /> Community</span><h3>{application.community}</h3><p>{application.applied} · {application.platform} application</p></div></div>
     <div className="campaign-application-details"><span><small>Platform</small><strong>{application.platform}</strong></span><span><small>Members</small><strong><UsersRound size={13} /> {application.members}</strong></span><span><small>Category</small><strong>{application.category}</strong></span><span><small>Location</small><strong><MapPin size={13} /> {application.location}</strong></span><span><small>Verification</small><strong className="campaign-application-verified"><ShieldCheck size={13} /> {application.verification}</strong></span><span><small>Past campaign clicks</small><strong><MousePointer2 size={13} /> {application.pastCampaignClicks}</strong></span><span><small>Advertiser CPC</small><strong className="campaign-application-payment">{application.cpc}</strong></span></div>
     <div className="campaign-application-footer"><button className="campaign-application-view" onClick={() => onView(application)}><Eye size={14} /> View community</button>{isPending ? <div className="campaign-application-actions"><button className="campaign-application-reject" onClick={() => onDecide(application.id, "Rejected")}><X size={14} /> Reject</button><button className="campaign-application-accept" onClick={() => onDecide(application.id, "Accepted")}><Check size={14} /> Accept</button></div> : <span className="campaign-application-decision"><Clock3 size={13} /> {application.status === "Accepted" ? "Ready to Post placement created" : "Removed from pending"}</span>}</div>
   </article>;
@@ -153,11 +154,20 @@ function ApplicationCard({ application, onDecide, onView }: { application: Campa
 function CommunityDialog({ application, details, onClose, onDecide }: { application: CampaignOwnerApplication | null; details: CommunityDetails | undefined; onClose: () => void; onDecide: (id: string, status: "Accepted" | "Rejected") => void }) {
   const link = details?.communityLink && /^https?:\/\//i.test(details.communityLink) ? details.communityLink : undefined;
   const verified = application?.verification === "Verified";
+
+    const localCommunity = useMemo(() => {
+    if (!application) return undefined;
+    return readCommunities().find((item) => item.name === application.community);
+  }, [application]);
+  const bannerImage = localCommunity?.bannerImage;
+  const profileImage = localCommunity?.profileImage;
+  const galleryImages = localCommunity?.images ?? [];
   return <Dialog open={Boolean(application)} onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent className="max-h-[90vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl" style={{ background: "var(--surface)", color: "var(--ink)", borderColor: "var(--border)" }}>
+    <DialogContent className="max-h-[90vh] gap-0 overflow-y-auto p-0 sm:max-w-5xl" style={{ background: "var(--surface)", color: "var(--ink)", borderColor: "var(--border)" }}>
       {application && <>
+        {bannerImage ? <img src={bannerImage} alt={`${application.community} banner`} className="h-40 w-full object-cover" /> : <div className="flex h-40 w-full items-center justify-center text-sm" style={{ background: "rgba(128,128,128,0.18)", color: "var(--muted)" }}>No banner image added</div>}
         <DialogHeader className="flex-row items-center gap-4 border-b px-8 py-7 text-left" style={{ borderColor: "var(--border)" }}>
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-xl font-bold text-white" style={{ background: "var(--ink)" }}>{application.community.charAt(0)}</span>
+          <span className="shrink-0">{profileImage ? <img src={profileImage} alt={`${application.community} profile`} className="h-14 w-14 rounded-full object-cover" /> : <PlatformMark platform={application.platform} color="coral" />}</span>
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-2xl font-medium tracking-tight" style={{ fontFamily: "Fraunces, Georgia, serif" }}>{application.community}</DialogTitle>
             <DialogDescription className="mt-1 text-sm" style={{ color: "var(--muted)" }}>{application.platform} community · applied to {application.campaign}</DialogDescription>
@@ -172,6 +182,18 @@ function CommunityDialog({ application, details, onClose, onDecide }: { applicat
             <h3 className="mb-2 text-sm font-bold">About this audience</h3>
             <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>{details?.audienceDescription || "The Community Owner has not added an audience description."}</p>
             {link && <a className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: "var(--coral-dark)" }} href={link} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} /> Open community link</a>}
+          </section>
+          <section>
+            <h3 className="mb-2 text-sm font-bold">Community images</h3>
+            {galleryImages.length > 0 ? (
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                {galleryImages.map((src, index) => (
+                  <img key={index} src={src} alt={`${application.community} image ${index + 1}`} loading="lazy" className="aspect-square w-full rounded-lg object-cover" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-28 items-center justify-center rounded-xl border text-sm" style={{ borderColor: "var(--border)", background: "var(--surface-soft)", color: "var(--muted)" }}>No community images added yet</div>
+            )}
           </section>
           <section>
             <h3 className="mb-2 text-sm font-bold">This application</h3>

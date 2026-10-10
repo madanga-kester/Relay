@@ -9,7 +9,6 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
-
     "dev:static": "vite --host 0.0.0.0 --port ${PORT:-3000} --strictPort",
     "build:static": "vite build"
   },
@@ -58,6 +57,7 @@
     "react-day-picker": "^9.11.1",
     "react-dom": "^19.2.1",
     "react-hook-form": "^7.64.0",
+    "react-icons": "^5.7.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^2.15.2",
     "sonner": "^2.0.7",
