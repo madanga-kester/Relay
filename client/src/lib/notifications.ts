@@ -9,6 +9,7 @@ export type AppNotification = {
   read: boolean;
   href?: string;
   type?: string;
+  platform?: string;
 };
 
 type ApiNotification = {
@@ -17,6 +18,7 @@ type ApiNotification = {
   title: string;
   body: string;
   href?: string | null;
+  platform?: string | null;
   read: boolean;
   createdAt: string;
 };
@@ -56,6 +58,7 @@ async function refresh() {
         read: item.read,
         href: item.href ?? undefined,
         type: item.type,
+        platform: item.platform ?? undefined,
       })),
     );
   } catch (error) {

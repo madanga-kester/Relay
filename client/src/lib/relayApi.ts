@@ -46,6 +46,8 @@ export type RelayCampaign = {
   startDate: string;
   endDate: string;
   status: string;
+  acceptedCommunities?: number;
+  communityOwnerCpc?: number;
 };
 
 export type RelayCommunity = {

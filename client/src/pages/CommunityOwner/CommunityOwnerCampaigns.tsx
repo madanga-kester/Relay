@@ -74,6 +74,7 @@ export default function CommunityOwnerCampaigns() {
   );
   const [reloadKey, setReloadKey] = useState(0);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+    const [serverCampaignStats, setServerCampaignStats] = useState<Record<string, { acceptedCommunities: number; communityOwnerCpc: number }>>({});
   const [applications, setApplications] = useState<MarketplaceApplication[]>(
     readApplications
   );
@@ -127,6 +128,17 @@ export default function CommunityOwnerCampaigns() {
               : ""
           );
           setCampaigns(mappedCampaigns);
+          setServerCampaignStats(
+            Object.fromEntries(
+              remoteCampaigns.map((item) => [
+                item.id,
+                {
+                  acceptedCommunities: item.acceptedCommunities ?? 0,
+                  communityOwnerCpc: item.communityOwnerCpc ?? 0,
+                },
+              ])
+            )
+          );
 
           if (JSON.stringify(merged) !== JSON.stringify(current)) {
             saveApplications(merged);
@@ -210,7 +222,28 @@ export default function CommunityOwnerCampaigns() {
       </WorkspaceShell>
     );
   }
+  const acceptedFor = (campaignId: string) =>
+    Math.max(
+      serverCampaignStats[campaignId]?.acceptedCommunities ?? 0,
+      applications.filter(
+        (application) =>
+          application.campaignId === campaignId && application.status === "Accepted"
+      ).length
+    );
 
+  const remainingFor = (campaign: CampaignRecord) =>
+    Math.max(
+      Number(campaign.maxCommunities.replace(/[^0-9.]/g, "")) -
+        acceptedFor(campaign.id),
+      0
+    );
+
+  const payoutFor = (campaign: CampaignRecord) => {
+    const serverPayout = serverCampaignStats[campaign.id]?.communityOwnerCpc;
+    return serverPayout
+      ? serverPayout
+      : Number(campaign.cpc.replace(/[^0-9.]/g, "")) * 0.75;
+  };
   const eligibleCommunitiesFor = (campaign: CampaignRecord) =>
     communityList.filter(
       (community) =>
@@ -223,14 +256,7 @@ export default function CommunityOwnerCampaigns() {
     );
 
   const matching = campaigns.filter((campaign) => {
-    const acceptedCount = applications.filter(
-      (application) =>
-        application.campaignId === campaign.id && application.status === "Accepted"
-    ).length;
-    const remaining = Math.max(
-      Number(campaign.maxCommunities.replace(/[^0-9.]/g, "")) - acceptedCount,
-      0
-    );
+    const remaining = remainingFor(campaign);
     return (
       (campaign.status === "Published" || campaign.status === "Active") &&
       remaining > 0 &&
@@ -324,17 +350,7 @@ export default function CommunityOwnerCampaigns() {
 
   const detailsCampaign = campaigns.find((item) => item.id === detailsCampaignId);
 
-  const detailsRemaining = detailsCampaign
-    ? Math.max(
-        Number(detailsCampaign.maxCommunities.replace(/[^0-9.]/g, "")) -
-          applications.filter(
-            (application) =>
-              application.campaignId === detailsCampaign.id &&
-              application.status === "Accepted"
-          ).length,
-        0
-      )
-    : 0;
+  const detailsRemaining = detailsCampaign ? remainingFor(detailsCampaign) : 0;
   const mediaFor = (campaign: CampaignRecord) => {
     if (campaign.mediaImage || campaign.mediaVideoUrl) {
       return { image: campaign.mediaImage, video: campaign.mediaVideoUrl };
@@ -471,22 +487,14 @@ export default function CommunityOwnerCampaigns() {
               {shown.map((item) => {
                 if (activeTab === "matching") {
                   const campaignItem = item as typeof campaigns[number];
-                  const remaining = Math.max(
-                    Number(
-                      campaignItem.maxCommunities.replace(/[^0-9.]/g, "")
-                    ) -
-                      applications.filter(
-                        (application) =>
-                          application.campaignId === campaignItem.id &&
-                          application.status === "Accepted"
-                      ).length,
-                    0
-                  );
+                  const remaining = remainingFor(campaignItem);
+                  const payout = payoutFor(campaignItem);
                   return view === "cards" ? (
                     <CampaignCard
                       key={campaignItem.id}
                       campaign={campaignItem}
                       remaining={remaining}
+                      payout={payout}
                       onApply={() => openApply(campaignItem.id)}
                       onView={() => openDetails(campaignItem.id)}
                     />
@@ -495,6 +503,7 @@ export default function CommunityOwnerCampaigns() {
                       key={campaignItem.id}
                       campaign={campaignItem}
                       remaining={remaining}
+                      payout={payout}
                       onApply={() => openApply(campaignItem.id)}
                       onView={() => openDetails(campaignItem.id)}
                     />
@@ -563,9 +572,7 @@ export default function CommunityOwnerCampaigns() {
                     ["Spots remaining", String(detailsRemaining)],
                     [
                       "Community earnings",
-                      `${(
-                        Number(detailsCampaign.cpc.replace(/[^0-9.]/g, "")) * 0.75
-                      ).toFixed(2)} / qualified click`,
+                      `${payoutFor(detailsCampaign).toFixed(2)} / qualified click`,
                     ],
                     ["Campaign budget", displayMoney(detailsCampaign.budget)],
                   ].map(([label, value]) => (
@@ -770,11 +777,13 @@ export default function CommunityOwnerCampaigns() {
 function CampaignCard({
   campaign,
   remaining,
+  payout,
   onApply,
   onView,
 }: {
   campaign: typeof defaultCampaigns[number];
   remaining: number;
+  payout: number;
   onApply: () => void;
   onView: () => void;
 }) {
@@ -813,7 +822,7 @@ function CampaignCard({
         <span>
           <small>Community owner earnings</small>
           <strong>
-            {(Number(campaign.cpc.replace(/[^0-9.]/g, "")) * 0.75).toFixed(2)} / qualified click
+            {payout.toFixed(2)} / qualified click
           </strong>
         </span>
         <span>
@@ -827,7 +836,7 @@ function CampaignCard({
       <div className="community-campaign-card-footer flex flex-wrap items-center gap-2">
         <span>
           <b>
-            {(Number(campaign.cpc.replace(/[^0-9.]/g, "")) * 0.75).toFixed(2)} / click
+            {payout.toFixed(2)} / click
           </b>
           <small>qualified click earnings</small>
         </span>
@@ -947,17 +956,17 @@ function ApplicationCard({
 function CampaignRow({
   campaign,
   remaining,
+  payout,
   onApply,
   onView,
 }: {
   campaign: typeof defaultCampaigns[number];
   remaining: number;
+  payout: number;
   onApply: () => void;
   onView: () => void;
 }) {
-  const earnings = (
-    Number(campaign.cpc.replace(/[^0-9.]/g, "")) * 0.75
-  ).toFixed(2);
+  const earnings = payout.toFixed(2);
 
   return (
     <article

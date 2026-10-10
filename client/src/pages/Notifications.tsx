@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from "react";
 import { Bell, BellOff, CheckCheck, Inbox, Search, X } from "lucide-react";
 import { Link } from "wouter";
 import WorkspaceShell from "@/components/WorkspaceShell";
+import PlatformMark from "@/components/PlatformMark";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   markAllNotificationsRead,
@@ -74,6 +75,25 @@ export default function Notifications() {
         className={`ntf-item${item.read ? "" : " ntf-item-unread"}${selectedId === item.id ? " ntf-item-selected" : ""}`}
       >
         <span aria-hidden="true" className={`ntf-dot${item.read ? "" : " ntf-dot-on"}`} />
+        {item.platform && (
+          <PlatformMark
+            platform={item.platform}
+            iconSize={14}
+            style={{
+              width: 28,
+              height: 28,
+              flexShrink: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 8,
+              background: "var(--ntf-tile)",
+              color: "var(--ntf-text)",
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          />
+        )}
         <span className="ntf-item-main">
           <span className="ntf-item-title">
             <strong style={{ fontWeight: item.read ? 600 : 700 }}>{item.title}</strong>

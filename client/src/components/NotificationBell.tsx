@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Bell, BellOff, X } from "lucide-react";
 import { Link } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
+import PlatformMark from "@/components/PlatformMark";
 import {
   markAllNotificationsRead,
   markNotificationRead,
@@ -210,6 +211,25 @@ export default function NotificationBell() {
                             background: item.read ? "transparent" : palette.accent,
                           }}
                         />
+                        {item.platform && (
+                          <PlatformMark
+                            platform={item.platform}
+                            iconSize={14}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              flexShrink: 0,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: 8,
+                              background: palette.tile,
+                              color: palette.text,
+                              fontSize: 12,
+                              fontWeight: 700,
+                            }}
+                          />
+                        )}
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <strong
                             style={{

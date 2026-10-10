@@ -7,7 +7,8 @@ import type { CampaignActivity, CampaignRecord, MarketplaceApplication } from "@
 import { displayMoney, moneyToNumber } from "@/data/marketplaceData";
 import { useCurrency } from "@/lib/currency";
 import { useCampaignDetail } from "./useCampaignDetail";
-import { getRelayActivity, relayBackendEnabled, type RelayActivityEvent } from "@/lib/relayApi";
+
+import { getRelayActivity, type RelayActivityEvent } from "@/lib/relayApi";
 function statusClass(status: CampaignRecord["status"]) { return `campaign-list-status campaign-list-status-${status.toLowerCase().replace(/\s+/g, "-")}`; }
 
 export default function CampaignOwnerCampaignDetail() {
@@ -17,16 +18,15 @@ export default function CampaignOwnerCampaignDetail() {
   const [activities, setActivities] = useState<CampaignActivity[]>(readCampaignActivities);
   useEffect(() => { const refresh = () => { setCampaigns(readCampaigns()); setApplications(readApplications()); setActivities(readCampaignActivities()); }; refresh(); void syncServerClickEvents().then(refresh); window.addEventListener("ownerboard:applications-updated", refresh); window.addEventListener("ownerboard:click-events-updated", refresh); window.addEventListener("ownerboard:activity-updated", refresh); return () => { window.removeEventListener("ownerboard:applications-updated", refresh); window.removeEventListener("ownerboard:click-events-updated", refresh); window.removeEventListener("ownerboard:activity-updated", refresh); }; }, []);
   const detail = useCampaignDetail(params?.id);
-  const backend = relayBackendEnabled();
   const [feed, setFeed] = useState<RelayActivityEvent[] | null>(null);
   useEffect(() => {
-    if (!backend) return;
+    if (!detail.backendId) return;
     let cancelled = false;
     getRelayActivity(100)
       .then((items) => { if (!cancelled) setFeed(items); })
       .catch(() => { if (!cancelled) setFeed([]); });
     return () => { cancelled = true; };
-  }, [backend]);
+  }, [detail.backendId]);
 
   const { format } = useCurrency();
   const campaign = detail.campaign ?? campaigns.find((item) => item.id === params?.id);
@@ -45,10 +45,10 @@ export default function CampaignOwnerCampaignDetail() {
   const financials = detail.stats
     ? { ...baseFinancials, qualifiedClicks: detail.stats.qualifiedClicks, advertiserSpend: detail.stats.advertiserSpend, remainingBudget: Math.max(moneyToNumber(campaign.budget) - detail.stats.advertiserSpend, 0) }
     : baseFinancials;
-  const campaignId = detail.backendId ?? campaign.id;
-  const campaignActivities: { id: string; event: string; timestamp: string }[] = backend
+  const backendCampaignId = detail.backendId;
+  const campaignActivities: { id: string; event: string; timestamp: string }[] = backendCampaignId
     ? (feed ?? [])
-        .filter((item) => item.entityType === "Campaign" && item.entityId === campaignId)
+        .filter((item) => item.entityType === "Campaign" && String(item.entityId).toLowerCase() === String(backendCampaignId).toLowerCase())
         .map((item) => ({ id: item.id, event: item.eventType, timestamp: item.createdAt }))
     : activities.filter((item) => item.campaignId === campaign.id || item.campaignId === detail.backendId);
   return <WorkspaceShell active="My Campaigns" workspaceLabel="Campaign Owner" workspaceMode="campaign-owner"><div className="dashboard-body campaign-placement-detail-page">

@@ -12,6 +12,17 @@ const applicationPlatforms = ["WhatsApp", "Telegram", "Discord"] as const;
 
 const grouped = (value: number) => value.toLocaleString("en-US");
 
+function roundedCommunityPayout(cpc: number): number {
+  const cents = Math.round(cpc * 100);
+  if (!Number.isFinite(cpc) || Math.abs(cpc * 100 - cents) > 1e-6) {
+    return getCpcBreakdown(formatMoney(cpc, 2)).communityOwnerCpc;
+  }
+  const quotient = Math.floor(cents / 4);
+  const remainder = cents % 4;
+  const feeCents = remainder === 3 ? quotient + 1 : remainder === 2 ? quotient + (quotient % 2) : quotient;
+  return (cents - feeCents) / 100;
+}
+
 export async function fetchAllRelayPages<T>(load: (page: number, pageSize: number) => Promise<RelayPage<T>>, pageSize = 100, maxPages = 20): Promise<T[]> {
   const first = await load(1, pageSize);
   const items = [...first.items];
@@ -79,7 +90,7 @@ function buildApplication(remote: RelayApplicationItem, campaign: CampaignRecord
     verification: community.verification,
     pastCampaignClicks: "0",
     cpc,
-    communityOwnerCpc: formatMoney(getCpcBreakdown(cpc).communityOwnerCpc, 2),
+    communityOwnerCpc: formatMoney(roundedCommunityPayout(remote.cpc), 2),
     trackingId: remote.placement?.trackingId,
     status: applicationStatusMap[remote.status] ?? "Pending",
     placementStatus: remote.placement ? placementStatusMap[remote.placement.status] : undefined,
@@ -102,6 +113,7 @@ export function mergeRelayApplications(local: MarketplaceApplication[], remote: 
       next[index] = {
         ...current,
         status: applicationStatusMap[item.status] ?? current.status,
+        communityOwnerCpc: formatMoney(roundedCommunityPayout(item.cpc), 2),
         trackingId: item.placement?.trackingId ?? current.trackingId,
         placementStatus: item.placement ? (placementStatusMap[item.placement.status] ?? current.placementStatus) : current.placementStatus,
       };
