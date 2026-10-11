@@ -3,7 +3,7 @@ import type { ApplicationStatus, CampaignRecord, CampaignStatus, MarketplaceAppl
 import { getRelayBackendId, setRelayBackendId } from "@/lib/relayApi";
 import type { RelayCampaign, RelayCommunity, RelayPage } from "@/lib/relayApi";
 
-export type RelayApplicationItem = { id: string; campaignId: string; communityId: string; communityOwnerId: string; cpc: number; status: string; placement?: { id: string; trackingId: string; status: string } | null };
+export type RelayApplicationItem = { id: string; campaignId: string; communityId: string; communityOwnerId: string; cpc: number; status: string; placement?: { id: string; trackingId: string; status: string } | null; createdAt?: string; community?: { pastQualifiedClicks?: number } | null };
 
 const campaignStatusMap: Record<string, CampaignStatus> = { Draft: "Draft", Published: "Published", Active: "Active", Paused: "Paused", Completed: "Completed", BudgetExhausted: "Budget Exhausted" };
 const placementStatusMap: Record<string, PlacementStatus> = { ReadyToPost: "Ready to Post", Active: "Active", Completed: "Completed" };
@@ -12,7 +12,16 @@ const applicationPlatforms = ["WhatsApp", "Telegram", "Discord"] as const;
 
 const grouped = (value: number) => value.toLocaleString("en-US");
 
-function roundedCommunityPayout(cpc: number): number {
+export function appliedLabel(createdAt?: string): string {
+  if (!createdAt) return "Earlier";
+  const time = new Date(createdAt).getTime();
+  if (Number.isNaN(time)) return "Earlier";
+  const days = Math.floor((Date.now() - time) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return `${days} days ago`;
+}
+export function roundedCommunityPayout(cpc: number): number {
   const cents = Math.round(cpc * 100);
   if (!Number.isFinite(cpc) || Math.abs(cpc * 100 - cents) > 1e-6) {
     return getCpcBreakdown(formatMoney(cpc, 2)).communityOwnerCpc;
@@ -54,9 +63,9 @@ export function mapRelayCampaign(campaign: RelayCampaign): CampaignRecord {
     startDate: campaign.startDate,
     endDate: campaign.endDate,
     status: campaignStatusMap[campaign.status] ?? "Draft",
-    applications: 0,
-    placements: 0,
-    clicks: 0,
+    applications: campaign.applicationCount ?? 0,
+    placements: campaign.placementCount ?? 0,
+    clicks: campaign.qualifiedClicks ?? 0,
   };
 }
 
@@ -88,14 +97,14 @@ function buildApplication(remote: RelayApplicationItem, campaign: CampaignRecord
     category: community.category,
     location: community.location,
     verification: community.verification,
-    pastCampaignClicks: "0",
+    pastCampaignClicks: grouped(remote.community?.pastQualifiedClicks ?? 0),
     cpc,
     communityOwnerCpc: formatMoney(roundedCommunityPayout(remote.cpc), 2),
     trackingId: remote.placement?.trackingId,
     status: applicationStatusMap[remote.status] ?? "Pending",
     placementStatus: remote.placement ? placementStatusMap[remote.placement.status] : undefined,
-    applied: "Earlier",
-    applicationDate: new Date().toISOString(),
+    applied: appliedLabel(remote.createdAt),
+    applicationDate: remote.createdAt ?? new Date().toISOString(),
     duration: campaign.duration,
     startDate: campaign.startDate,
     endDate: campaign.endDate,
@@ -114,6 +123,9 @@ export function mergeRelayApplications(local: MarketplaceApplication[], remote: 
         ...current,
         status: applicationStatusMap[item.status] ?? current.status,
         communityOwnerCpc: formatMoney(roundedCommunityPayout(item.cpc), 2),
+        pastCampaignClicks: item.community ? grouped(item.community.pastQualifiedClicks ?? 0) : current.pastCampaignClicks,
+        applied: item.createdAt ? appliedLabel(item.createdAt) : current.applied,
+        applicationDate: item.createdAt ?? current.applicationDate,
         trackingId: item.placement?.trackingId ?? current.trackingId,
         placementStatus: item.placement ? (placementStatusMap[item.placement.status] ?? current.placementStatus) : current.placementStatus,
       };

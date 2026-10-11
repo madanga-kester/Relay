@@ -2187,11 +2187,7 @@ function ActivityView({
               </span>
               <Link
                 className="section-link"
-                href={
-                  workspaceMode === "campaign-owner"
-                    ? "/campaign-owner/campaigns"
-                    : "/campaigns"
-                }
+                href="/community-owner/campaigns"
               >
                 View campaigns <ArrowUpRight size={14} />
               </Link>

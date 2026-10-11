@@ -48,6 +48,9 @@ export type RelayCampaign = {
   status: string;
   acceptedCommunities?: number;
   communityOwnerCpc?: number;
+  applicationCount?: number;
+  placementCount?: number;
+  qualifiedClicks?: number;
 };
 
 export type RelayCommunity = {
@@ -646,6 +649,8 @@ export async function listRelayApplications(page = 1, pageSize = 100) {
       communityOwnerId: string;
       cpc: number;
       status: string;
+      createdAt?: string;
+      reviewedAt?: string | null;
       placement?: { id: string; trackingId: string; status: string };
       community?: {
         name: string;
@@ -656,6 +661,7 @@ export async function listRelayApplications(page = 1, pageSize = 100) {
         verificationStatus: string;
         audienceDescription?: string | null;
         communityLink?: string | null;
+        pastQualifiedClicks?: number;
       } | null;
       campaign?: {
         name: string;

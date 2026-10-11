@@ -20,12 +20,14 @@ const statusMap: Record<string, CampaignStatus> = {
   BudgetExhausted: "Budget Exhausted",
 };
 
+export type CampaignDetailApplication = Awaited<ReturnType<typeof listRelayApplications>>["items"][number];
+
 export type CampaignDetailState = {
   loading: boolean;
   backendId?: string;
   campaign?: CampaignRecord;
-  applications: { status: string }[] | null;
-  stats?: { qualifiedClicks: number; advertiserSpend: number };
+  applications: CampaignDetailApplication[] | null;
+  stats?: { qualifiedClicks: number; advertiserSpend: number; communityOwnerCpc?: number };
 };
 
 export function useCampaignDetail(routeId: string | undefined): CampaignDetailState {
@@ -52,7 +54,7 @@ export function useCampaignDetail(routeId: string | undefined): CampaignDetailSt
           loading: false,
           backendId,
           applications: mine,
-          stats: { qualifiedClicks, advertiserSpend: stats?.advertiserSpend ?? 0 },
+          stats: { qualifiedClicks, advertiserSpend: stats?.advertiserSpend ?? 0, communityOwnerCpc: item.communityOwnerCpc },
           campaign: {
             id: routeId,
             name: item.name,

@@ -32,6 +32,8 @@ function toAccepted(item: BackendApplication): AcceptedCommunityCampaign {
     startDate: campaign?.startDate ?? "",
     endDate: campaign?.endDate ?? "",
     trackingLink: getTrackingPath(placement.trackingId),
+    appliedAt: item.createdAt,
+    acceptedAt: item.reviewedAt ?? undefined,
     advertisement: campaign?.advertisement ?? "",
     instructions: [
       "Copy the approved advertisement exactly as shown.",

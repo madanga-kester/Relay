@@ -5,7 +5,7 @@ import { CampaignOwnerPlacement, readPlacements } from "./placementData";
 import { CampaignRecord } from "./campaignData";
 import { formatMoney, getCampaignFinancials, getCpcBreakdown, getPlacementClickStats, getTrackingPath } from "@/data/marketplaceData";
 import { listRelayApplications, relayBackendEnabled } from "@/lib/relayApi";
-
+import { appliedLabel } from "@/lib/relayMappers";
 type BackendApplication = Awaited<ReturnType<typeof listRelayApplications>>["items"][number];
 
 function placementStatus(status: string): "Ready to Post" | "Active" | "Completed" {
@@ -38,8 +38,10 @@ function toPlacement(item: BackendApplication): CampaignOwnerPlacement {
     trackingId: placement.trackingId,
     status: "Accepted",
     placementStatus: placementStatus(placement.status),
-    applied: "Received",
-    applicationDate: "",
+    applied: appliedLabel(item.createdAt),
+    applicationDate: item.createdAt ?? "",
+    appliedAt: item.createdAt,
+    acceptedAt: item.reviewedAt ?? undefined,
     duration: campaign ? `${campaign.durationDays} days` : "",
     startDate: campaign?.startDate ?? "",
     endDate: campaign?.endDate ?? "",

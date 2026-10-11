@@ -6,7 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { CurrencyProvider } from "./lib/currency";
 import { RelayRouteGate, RelaySessionProvider } from "./contexts/RelaySessionContext";
-import Campaigns from "./pages/Campaigns";
+//import Campaigns from "./pages/Campaigns";
 import CampaignWorkspace from "./pages/CampaignWorkspace";
 import AcceptedCampaigns from "./pages/AcceptedCampaigns";
 import Home from "./pages/Home";
@@ -113,7 +113,7 @@ function Router() {
       <Route path={"/campaign-owner/performance"} component={CampaignOwnerPerformance} />
       <Route path={"/campaign-owner/:section"} component={CampaignOwnerSectionPlaceholder} />
       <Route path={"/"} component={LandingPage} />
-      <Route path={"/campaigns"} component={Campaigns} />
+      {/* <Route path={"/campaigns"} component={Campaigns} /> */}
       <Route path={"/campaigns/accepted"} component={AcceptedCampaigns} />
       <Route path={"/campaigns/:slug/workspace"} component={CampaignWorkspace} />
       <Route path={"/communities/add"} component={AddCommunity} />

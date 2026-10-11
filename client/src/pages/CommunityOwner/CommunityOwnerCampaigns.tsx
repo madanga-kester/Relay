@@ -4,12 +4,15 @@ import {
   CheckCircle2,
   Clock3,
   Eye,
+  Globe2,
   LayoutGrid,
   List,
   MapPin,
   MousePointer2,
   Send,
+  Sparkles,
   UsersRound,
+  WalletCards,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -80,8 +83,7 @@ export default function CommunityOwnerCampaigns() {
   );
   const [activeTab, setActiveTab] = useState<Tab>("matching");
   
-  // List view is set as primary/default layout
-  const [view, setView] = useState<"cards" | "list">("list");
+  const [view, setView] = useState<"cards" | "list">("cards");
   const [detailsCampaignId, setDetailsCampaignId] = useState<string | null>(null);
 
   const ownerIds = useMemo(
@@ -481,7 +483,7 @@ export default function CommunityOwnerCampaigns() {
 
           {shown.length > 0 ? (
             <div
-              className={view === "cards" ? "community-campaign-grid" : ""}
+              className={view === "cards" ? "marketplace-grid" : ""}
               style={view === "list" ? { display: "grid", gap: 10 } : undefined}
             >
               {shown.map((item) => {
@@ -558,41 +560,74 @@ export default function CommunityOwnerCampaigns() {
                   className="border-b px-8 py-6 text-left"
                   style={{ borderColor: "var(--border)" }}
                 >
-                  <DialogTitle className="text-2xl font-bold">{detailsCampaign.name}</DialogTitle>
-                  <DialogDescription className="text-base">{detailsCampaign.advertiser}</DialogDescription>
+                  <div className="campaign-dialog-identity">
+                    <BrandMark name={detailsCampaign.advertiser} />
+                    <div>
+                      <div className="campaign-brand">{detailsCampaign.advertiser}</div>
+                      <div className="campaign-category">{detailsCampaign.category}</div>
+                    </div>
+                  </div>
+                  <DialogTitle
+                    style={{
+                      fontFamily: "'Fraunces', Georgia, serif",
+                      fontSize: "calc(32px * var(--text-scale, 1))",
+                      lineHeight: 1.05,
+                      letterSpacing: "-.05em",
+                      margin: "10px 0 0",
+                    }}
+                  >
+                    {detailsCampaign.name}
+                  </DialogTitle>
+                  <DialogDescription className="text-base">
+                    A campaign opportunity for owners who know how to start an authentic conversation with the right community.
+                  </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid grid-cols-2 content-start gap-4 p-8 sm:grid-cols-4 flex-1 overflow-y-auto">
-                  {[
-                    ["Status", detailsCampaign.status],
-                    ["Platform", detailsCampaign.platforms.join(" / ")],
-                    ["Category", detailsCampaign.category],
-                    ["Target location", detailsCampaign.location],
-                    ["Duration", detailsCampaign.duration],
-                    ["Spots remaining", String(detailsRemaining)],
-                    [
-                      "Community earnings",
-                      `${payoutFor(detailsCampaign).toFixed(2)} / qualified click`,
-                    ],
-                    ["Campaign budget", displayMoney(detailsCampaign.budget)],
-                  ].map(([label, value]) => (
-                    <div
-                      className="rounded-xl border p-5 flex flex-col justify-center"
-                      style={{
-                        borderColor: "var(--border)",
-                        background: "var(--surface-soft)",
-                      }}
-                      key={label}
-                    >
-                      <small
-                        className="block text-xs font-bold uppercase tracking-wider mb-1"
-                        style={{ color: "var(--muted)" }}
+                  <div className="col-span-2 sm:col-span-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    {[
+                      ["Status", detailsCampaign.status],
+                      ["Platform", detailsCampaign.platforms.join(" / ")],
+                      ["Category", detailsCampaign.category],
+                      ["Target location", detailsCampaign.location],
+                      ["Duration", detailsCampaign.duration],
+                      ["Spots remaining", String(detailsRemaining)],
+                    ].map(([label, value]) => (
+                      <div
+                        className="rounded-xl border p-5 flex flex-col justify-center"
+                        style={{
+                          borderColor: "var(--border)",
+                          background: "var(--surface-soft)",
+                        }}
+                        key={label}
                       >
-                        {label}
-                      </small>
-                      <strong className="block text-base">{value}</strong>
+                        <small
+                          className="block text-xs mb-1"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          {label}
+                        </small>
+                        <strong className="block text-base">{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-4 grid gap-4 sm:grid-cols-2">
+                    <div className="campaign-payment-callout" style={{ margin: 0 }}>
+                      <WalletCards size={18} />
+                      <span>
+                        <small>Community earnings</small>
+                        <strong>{payoutFor(detailsCampaign).toFixed(2)} / qualified click</strong>
+                      </span>
                     </div>
-                  ))}
+                    <div className="campaign-payment-callout" style={{ margin: 0 }}>
+                      <WalletCards size={18} />
+                      <span>
+                        <small>Campaign budget</small>
+                        <strong>{displayMoney(detailsCampaign.budget)}</strong>
+                      </span>
+                    </div>
+                  </div>
 
                   {detailsCampaign.description && (
                     <div className="col-span-2 sm:col-span-4">
@@ -774,6 +809,20 @@ export default function CommunityOwnerCampaigns() {
   );
 }
 
+const brandColors = ["coral", "lilac", "moss"] as const;
+
+function BrandMark({ name }: { name: string }) {
+  const color =
+    brandColors[[...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 3];
+  return (
+    <span className={`brand-mark brand-mark-${color}`}>
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
+
 function CampaignCard({
   campaign,
   remaining,
@@ -788,79 +837,129 @@ function CampaignCard({
   onView: () => void;
 }) {
   return (
-    <article className="community-campaign-card">
-      <div className="community-campaign-card-top">
-        <div>
-          <span className="community-campaign-status community-campaign-status-matching">
-            <span /> Matching
-          </span>
-          <h2>{campaign.name}</h2>
-          <p>{campaign.advertiser}</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <article className="marketplace-card marketplace-card-featured">
+      <div className="marketplace-card-top">
+        <div className="campaign-identity">
+          <BrandMark name={campaign.advertiser} />
+          <div>
+            <div className="campaign-brand">{campaign.advertiser}</div>
+            <div className="campaign-category">{campaign.category}</div>
+          </div>
         </div>
-        <span className="community-campaign-fit">Matches your communities</span>
+        <span className="featured-badge">
+          <Sparkles size={12} /> Matches your communities
+        </span>
       </div>
 
-      <div className="community-campaign-details">
-        <span>
-          <small>Platform</small>
-          <strong>{campaign.platforms.join(" / ")}</strong>
+      <span
+        className="community-campaign-status community-campaign-status-matching"
+        style={{ marginTop: 16, alignSelf: "flex-start" }}
+      >
+        <span /> Matching
+      </span>
+      <h2 style={{ marginTop: 8 }}>{campaign.name}</h2>
+
+      <div className="marketplace-highlights">
+        <span title="Platform">
+          <Globe2 size={13} /> {campaign.platforms.join(" / ")}
         </span>
-        <span>
-          <small>Category</small>
-          <strong>{campaign.category}</strong>
+        <span title="Target location">
+          <MapPin size={13} /> {campaign.location}
         </span>
-        <span>
-          <small>Target location</small>
-          <strong>
-            <MapPin size={12} /> {campaign.location}
-          </strong>
+        <span title="Duration">
+          <Clock3 size={13} /> {campaign.duration}
         </span>
-        <span>
-          <small>Duration</small>
-          <strong>{campaign.duration}</strong>
-        </span>
-        <span>
+      </div>
+
+      <div className="marketplace-card-footer">
+        <div>
           <small>Community owner earnings</small>
-          <strong>
-            {payout.toFixed(2)} / qualified click
-          </strong>
-        </span>
-        <span>
-          <small>Community availability</small>
-          <strong>
-            <UsersRound size={12} /> {remaining} spots remaining
-          </strong>
-        </span>
+          <strong>{payout.toFixed(2)} / qualified click</strong>
+        </div>
+        <div>
+          <small>Campaign budget</small>
+          <strong>{displayMoney(campaign.budget)}</strong>
+        </div>
       </div>
 
-      <div className="community-campaign-card-footer flex flex-wrap items-center gap-2">
-        <span>
-          <b>
-            {payout.toFixed(2)} / click
-          </b>
-          <small>qualified click earnings</small>
-        </span>
-        <span>
-          <b>{displayMoney(campaign.budget)}</b>
-          <small>campaign budget</small>
-        </span>
-
-        {/* Redesigned View Campaign Details Button */}
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10"
-          style={{ borderColor: "var(--border)", color: "var(--ink)" }}
-          onClick={onView}
+      <div className="marketplace-deadline" style={{ flexWrap: "wrap", gap: 8 }}>
+        <UsersRound size={13} /> {remaining} spots remaining
+        <span
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
         >
-          <Eye size={14} className="text-muted-foreground" />
-          <span>Details</span>
-        </button>
-
-        <button className="accept-button community-apply-button" onClick={onApply}>
-          <Send size={14} /> Apply to Campaign
-        </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10"
+            style={{ borderColor: "var(--border)", color: "var(--ink)" }}
+            onClick={onView}
+          >
+            <Eye size={14} className="text-muted-foreground" />
+            <span>Details</span>
+          </button>
+          <button
+            type="button"
+            className="view-campaign-button"
+            style={{ marginLeft: 0 }}
+            onClick={onApply}
+          >
+            Apply to Campaign <Send size={14} />
+          </button>
+        </span>
       </div>
     </article>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   );
 }
 

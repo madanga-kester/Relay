@@ -7,18 +7,35 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ApplicationStatus, CampaignOwnerApplication, ensureTrackingId, formatMoney, getCpcBreakdown, readApplications, registerTrackingPlacement, saveApplications } from "./applicationData";
 import { CampaignRecord, readCampaigns } from "./campaignData";
 import { recordAdminActivity } from "@/data/marketplaceData";
+import { appliedLabel, roundedCommunityPayout } from "@/lib/relayMappers";
 import { PlatformMark, readCommunities } from "@/pages/OwnerPages";
 import { getRelayBackendId, listMyRelayCampaigns, listRelayApplications, listRelayCommunities, relayBackendEnabled, reviewRelayApplication, setRelayBackendId, type RelayCampaign, type RelayCommunity } from "@/lib/relayApi";
 
-function statusClass(status: ApplicationStatus) {
-  return `campaign-application-status campaign-application-status-${status.toLowerCase()}`;
+
+function formatWhen(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" });
 }
 
 type BackendApplication = Awaited<ReturnType<typeof listRelayApplications>>["items"][number];
-
+function statusClass(status: ApplicationStatus) {
+  return `campaign-application-status campaign-application-status-${status.toLowerCase()}`;
+}
 type CommunityDetails = { name: string; platform: string; members: number; category: string; location: string; verificationStatus: string; audienceDescription?: string | null; communityLink?: string | null };
 
 function toApplication(item: BackendApplication, campaign: RelayCampaign | undefined, community: CommunityDetails | undefined): CampaignOwnerApplication {
+  const base = toBaseApplication(item, campaign, community);
+  return {
+    ...base,
+    pastCampaignClicks: item.community ? (item.community.pastQualifiedClicks ?? 0).toLocaleString("en-KE") : base.pastCampaignClicks,
+    communityOwnerCpc: formatMoney(roundedCommunityPayout(item.cpc), 2),
+    applied: appliedLabel(item.createdAt),
+    applicationDate: item.createdAt ?? "",
+  };
+}
+
+function toBaseApplication(item: BackendApplication, campaign: RelayCampaign | undefined, community: CommunityDetails | undefined): CampaignOwnerApplication {
   const breakdown = getCpcBreakdown(`KSh ${item.cpc}`);
   return { id: item.id, campaignId: item.campaignId, communityId: item.communityId, communityOwnerId: item.communityOwnerId, community: community?.name ?? "Community", campaign: campaign?.name ?? "Campaign", advertiser: campaign?.advertiserName ?? "", platform: (community?.platform ?? "WhatsApp") as CampaignOwnerApplication["platform"], members: community ? community.members.toLocaleString("en-KE") : "—", category: community?.category ?? "—", location: community?.location ?? "—", verification: community?.verificationStatus === "Verified" ? "Verified" : "Pending verification", pastCampaignClicks: "—", cpc: formatMoney(item.cpc, 2), communityOwnerCpc: formatMoney(breakdown.communityOwnerCpc, 2), trackingId: item.placement?.trackingId, status: item.status as ApplicationStatus, placementStatus: item.placement ? ((item.placement.status === "ReadyToPost" ? "Ready to Post" : item.placement.status) as CampaignOwnerApplication["placementStatus"]) : undefined, applied: "Received", applicationDate: "", duration: campaign ? `${campaign.durationDays} days` : "", startDate: campaign?.startDate ?? "", endDate: campaign?.endDate ?? "" };
 }
@@ -30,6 +47,7 @@ export default function CampaignOwnerApplications() {
   const [loaded, setLoaded] = useState(!backend);
   const [details, setDetails] = useState<Record<string, CommunityDetails>>({});
   const [viewing, setViewing] = useState<CampaignOwnerApplication | null>(null);
+    const [reviewedAtById, setReviewedAtById] = useState<Record<string, string>>({});
   const pending = useMemo(() => applications.filter((application) => application.status === "Pending"), [applications]);
   const decided = useMemo(() => applications.filter((application) => application.status !== "Pending"), [applications]);
 
@@ -45,6 +63,7 @@ export default function CampaignOwnerApplications() {
       });
       setDetails(nextDetails);
       setApplications(mapped);
+            setReviewedAtById(Object.fromEntries(applicationPage.items.filter((item) => item.reviewedAt).map((item) => [item.id, item.reviewedAt as string])));
     } catch {
       toast.error("Could not load applications", { description: "Check that the API is running, then refresh the page." });
     }
@@ -134,19 +153,19 @@ export default function CampaignOwnerApplications() {
       
       <section className="campaign-applications-heading"><div><span className="section-kicker"><span className="section-kicker-line" /> Community Owner applications</span><h1>Review your applicants</h1><p>Choose the communities that should carry your campaigns. Accepting an application creates a Ready to Post placement for the Community Owner.</p></div><div className="campaign-applications-summary"><strong>{pending.length}</strong><span>pending review</span></div></section>
       <div className="campaign-applications-note"><ShieldCheck size={16} /><span><strong>You make the decision.</strong> Community Owners only apply. Accept or reject each application from this workspace.</span></div>
-      <section className="campaign-applications-section"><div className="section-heading"><div><div className="section-kicker"><span className="section-kicker-line section-kicker-line-lilac" /> Review queue</div><h2>Pending applications</h2></div><span className="section-count">{pending.length} awaiting your decision</span></div>{!loaded ? null : pending.length === 0 ? <div className="campaign-applications-empty"><CheckCircle2 size={21} /><strong>All caught up</strong><p>There are no pending community applications to review.</p></div> : <div className="campaign-application-list">{pending.map((application) => <ApplicationCard application={application} key={application.id} onDecide={decide} onView={setViewing} />)}</div>}</section>
-      {decided.length > 0 && <section className="campaign-applications-section campaign-applications-decided"><div className="section-heading"><div><div className="section-kicker"><span className="section-kicker-line" /> Decision history</div><h2>Recently reviewed</h2></div><span className="section-count">{decided.length} decided</span></div><div className="campaign-application-list">{decided.map((application) => <ApplicationCard application={application} key={application.id} onDecide={decide} onView={setViewing} />)}</div></section>}
+      <section className="campaign-applications-section"><div className="section-heading"><div><div className="section-kicker"><span className="section-kicker-line section-kicker-line-lilac" /> Review queue</div><h2>Pending applications</h2></div><span className="section-count">{pending.length} awaiting your decision</span></div>{!loaded ? null : pending.length === 0 ? <div className="campaign-applications-empty"><CheckCircle2 size={21} /><strong>All caught up</strong><p>There are no pending community applications to review.</p></div> : <div className="campaign-application-list">{pending.map((application) => <ApplicationCard application={application} reviewedAt={reviewedAtById[application.id]} key={application.id} onDecide={decide} onView={setViewing} />)}</div>}</section>
+      {decided.length > 0 && <section className="campaign-applications-section campaign-applications-decided"><div className="section-heading"><div><div className="section-kicker"><span className="section-kicker-line" /> Decision history</div><h2>Recently reviewed</h2></div><span className="section-count">{decided.length} decided</span></div><div className="campaign-application-list">{decided.map((application) => <ApplicationCard application={application} reviewedAt={reviewedAtById[application.id]} key={application.id} onDecide={decide} onView={setViewing} />)}</div></section>}
       <CommunityDialog application={viewing} details={viewing ? details[viewing.id] : undefined} onClose={() => setViewing(null)} onDecide={(id, status) => { setViewing(null); void decide(id, status); }} />
     </div>
   </WorkspaceShell>;
 }
 
-function ApplicationCard({ application, onDecide, onView }: { application: CampaignOwnerApplication; onDecide: (id: string, status: "Accepted" | "Rejected") => void; onView: (application: CampaignOwnerApplication) => void }) {
+function ApplicationCard({ application, reviewedAt, onDecide, onView }: { application: CampaignOwnerApplication; reviewedAt?: string; onDecide: (id: string, status: "Accepted" | "Rejected") => void; onView: (application: CampaignOwnerApplication) => void }) {
   const isPending = application.status === "Pending";
   return <article className={`campaign-application-card ${!isPending ? "campaign-application-card-decided" : ""}`}>
     <div className="campaign-application-card-header"><div className="campaign-application-campaign"><span className="campaign-application-campaign-mark">{application.campaign.charAt(0)}</span><span><small>Campaign</small><strong>{application.campaign}</strong></span></div><span className={statusClass(application.status)}><span /> {application.status}</span></div>
     <div className="campaign-application-community"><PlatformMark platform={application.platform} color="coral" /><div><span className="section-kicker"><span className="section-kicker-line" /> Community</span><h3>{application.community}</h3><p>{application.applied} · {application.platform} application</p></div></div>
-    <div className="campaign-application-details"><span><small>Platform</small><strong>{application.platform}</strong></span><span><small>Members</small><strong><UsersRound size={13} /> {application.members}</strong></span><span><small>Category</small><strong>{application.category}</strong></span><span><small>Location</small><strong><MapPin size={13} /> {application.location}</strong></span><span><small>Verification</small><strong className="campaign-application-verified"><ShieldCheck size={13} /> {application.verification}</strong></span><span><small>Past campaign clicks</small><strong><MousePointer2 size={13} /> {application.pastCampaignClicks}</strong></span><span><small>Advertiser CPC</small><strong className="campaign-application-payment">{application.cpc}</strong></span></div>
+    <div className="campaign-application-details"><span><small>Platform</small><strong>{application.platform}</strong></span><span><small>Members</small><strong><UsersRound size={13} /> {application.members}</strong></span><span><small>Category</small><strong>{application.category}</strong></span><span><small>Location</small><strong><MapPin size={13} /> {application.location}</strong></span><span><small>Verification</small><strong className="campaign-application-verified"><ShieldCheck size={13} /> {application.verification}</strong></span><span><small>Past campaign clicks</small><strong><MousePointer2 size={13} /> {application.pastCampaignClicks}</strong></span><span><small>Advertiser CPC</small><strong className="campaign-application-payment">{application.cpc}</strong></span>{application.applicationDate && <span><small>Applied on</small><strong>{formatWhen(application.applicationDate)}</strong></span>}{reviewedAt && <span><small>{application.status === "Rejected" ? "Rejected on" : "Accepted on"}</small><strong>{formatWhen(reviewedAt)}</strong></span>}</div>
     <div className="campaign-application-footer"><button className="campaign-application-view" onClick={() => onView(application)}><Eye size={14} /> View community</button>{isPending ? <div className="campaign-application-actions"><button className="campaign-application-reject" onClick={() => onDecide(application.id, "Rejected")}><X size={14} /> Reject</button><button className="campaign-application-accept" onClick={() => onDecide(application.id, "Accepted")}><Check size={14} /> Accept</button></div> : <span className="campaign-application-decision"><Clock3 size={13} /> {application.status === "Accepted" ? "Ready to Post placement created" : "Removed from pending"}</span>}</div>
   </article>;
 }
