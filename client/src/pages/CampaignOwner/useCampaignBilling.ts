@@ -54,7 +54,7 @@ export function useCampaignBilling(): CampaignBillingState {
         const [campaigns, performance, activity] = await Promise.all([
           allPages(listMyRelayCampaigns),
           getRelayCampaignPerformance(),
-          getRelayBillingActivity(8),
+          getRelayBillingActivity(),
         ]);
         if (cancelled) return;
         const local = readCampaigns();
@@ -80,8 +80,11 @@ export function useCampaignBilling(): CampaignBillingState {
           loading: false,
           failed: false,
           rows,
-          activity: activity.map((item) => ({
-            id: item.id,
+          activity: [...activity]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 8)
+            .map((item, index) => ({
+            id: `${item.trackingId}-${item.createdAt}-${index}`,
             campaign: nameById.get(item.campaignId) ?? "Campaign",
             createdAt: item.createdAt,
             trackingId: item.trackingId,

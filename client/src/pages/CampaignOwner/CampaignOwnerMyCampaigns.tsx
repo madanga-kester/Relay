@@ -6,12 +6,13 @@ import WorkspaceShell from "@/components/WorkspaceShell";
 import { CampaignRecord, readCampaigns, saveCampaigns } from "./campaignData";
 import { CampaignOwnerApplication, readApplications } from "./applicationData";
 import { displayMoney, formatMoney, recordCampaignActivity } from "@/data/marketplaceData";
-import { getRelayBackendId, listMyRelayCampaigns, listMyRelayPlacements, listRelayApplications, relayBackendEnabled, transitionRelayCampaign, type RelayCampaign } from "@/lib/relayApi";
-
+import { getRelayBackendId, getRelayCampaignPerformance, listMyRelayCampaigns, listMyRelayPlacements, listRelayApplications, relayBackendEnabled, transitionRelayCampaign, type RelayCampaign } from "@/lib/relayApi";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function statusClass(status: CampaignRecord["status"]) { return `campaign-list-status campaign-list-status-${status.toLowerCase().replace(/\s+/g, "-")}`; }
+function statusClass(status: CampaignRecord["status"]) { 
+  return `campaign-list-status campaign-list-status-${status.toLowerCase().replace(/\s+/g, "-")}`; 
+}
 
 export default function CampaignOwnerMyCampaigns() {
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
@@ -19,18 +20,33 @@ export default function CampaignOwnerMyCampaigns() {
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [applications, setApplications] = useState<CampaignOwnerApplication[]>(readApplications);
   const [backendApplications, setBackendApplications] = useState<{ campaignId: string; status: string }[] | null>(null);
+  const [spendByCampaign, setSpendByCampaign] = useState<Record<string, number>>({});
+
   useEffect(() => {
     const load = async () => {
-      if (!relayBackendEnabled()) { setCampaigns(readCampaigns()); setApplications(readApplications()); setLoaded(true); return; }
+      if (!relayBackendEnabled()) { 
+        setCampaigns(readCampaigns()); 
+        setApplications(readApplications()); 
+        setLoaded(true); 
+        return; 
+      }
       try {
-        const [page, applicationPage, placementPage] = await Promise.all([listMyRelayCampaigns(), listRelayApplications().catch(() => null), listMyRelayPlacements().catch(() => null)]);
+        const [page, applicationPage, placementPage, performance] = await Promise.all([
+          listMyRelayCampaigns(), 
+          listRelayApplications().catch(() => null), 
+          listMyRelayPlacements().catch(() => null), 
+          getRelayCampaignPerformance().catch(() => null)
+        ]);
         const local = readCampaigns();
+        const statsByCampaign = new Map((performance ?? []).map((stat) => [stat.campaignId, stat]));
+        setSpendByCampaign(Object.fromEntries((performance ?? []).map((stat) => [stat.campaignId, stat.advertiserSpend])));
         setBackendApplications(applicationPage ? applicationPage.items : []);
         setCampaigns(page.items.map((item) => toCampaignRecord(
           item,
           local.find((candidate) => getRelayBackendId("campaign", candidate.id) === item.id),
           applicationPage ? applicationPage.items.filter((application) => application.campaignId === item.id).length : 0,
           placementPage ? placementPage.items.filter((placement) => placement.campaignId === item.id && placement.status === "Active").length : 0,
+          statsByCampaign.get(item.id)?.qualifiedClicks ?? 0,
         )));
       } catch {
         setCampaigns([]);
@@ -43,17 +59,176 @@ export default function CampaignOwnerMyCampaigns() {
     window.addEventListener("ownerboard:applications-updated", refresh);
     return () => window.removeEventListener("ownerboard:applications-updated", refresh);
   }, []);
-  const applyStatuses = (next: CampaignRecord[]) => { setCampaigns(next); const statuses = new Map(next.map((item) => [item.id, item.status])); saveCampaigns(readCampaigns().map((item) => statuses.has(item.id) ? { ...item, status: statuses.get(item.id)! } : item)); };
-  const syncLifecycle = async (campaign: CampaignRecord, action: "publish" | "pause" | "resume" | "complete") => { const backendId = getRelayBackendId("campaign", campaign.id) ?? campaign.id; if (relayBackendEnabled() && UUID_PATTERN.test(backendId)) { try { await transitionRelayCampaign(backendId, action); } catch { toast.error("Could not update the campaign", { description: "The server rejected this change. Refresh the page and try again." }); return false; } } return true; };
-  const publishDraft = async (campaignId: string) => { const campaign = campaigns.find((item) => item.id === campaignId); if (!campaign || campaign.status !== "Draft") return; if (!(await syncLifecycle(campaign, "publish"))) return; applyStatuses(campaigns.map((item) => item.id === campaignId ? { ...item, status: "Published" as const } : item)); recordCampaignActivity(campaign, "Campaign Published"); toast.success("Campaign published", { description: `${campaign.name} is now available to matching Community Owners.` }); };
-  const pauseCampaign = async (campaignId: string) => { const campaign = campaigns.find((item) => item.id === campaignId); if (!campaign || campaign.status !== "Active") return; if (!(await syncLifecycle(campaign, "pause"))) return; applyStatuses(campaigns.map((item) => item.id === campaignId ? { ...item, status: "Paused" as const } : item)); recordCampaignActivity(campaign, "Campaign Paused"); toast.success("Campaign paused", { description: `${campaign.name} is now paused. Existing applications and placements remain unchanged.` }); };
-  const resumeCampaign = async (campaignId: string) => { const campaign = campaigns.find((item) => item.id === campaignId); if (!campaign || campaign.status !== "Paused") return; if (!(await syncLifecycle(campaign, "resume"))) return; applyStatuses(campaigns.map((item) => item.id === campaignId ? { ...item, status: "Active" as const } : item)); recordCampaignActivity(campaign, "Campaign Resumed"); toast.success("Campaign resumed", { description: `${campaign.name} is active again. Existing applications and placements remain unchanged.` }); };
-  const endCampaign = async (campaignId: string) => { const campaign = campaigns.find((item) => item.id === campaignId); if (!campaign || (campaign.status !== "Active" && campaign.status !== "Paused")) return; if (!(await syncLifecycle(campaign, "complete"))) return; applyStatuses(campaigns.map((item) => item.id === campaignId ? { ...item, status: "Completed" as const } : item)); recordCampaignActivity(campaign, "Campaign Completed"); toast.success("Campaign ended", { description: `${campaign.name} is now completed. Historical applications, placements, clicks, and earnings remain available.` }); };
-  return <WorkspaceShell active="My Campaigns" workspaceLabel="Campaign Owner" workspaceMode="campaign-owner">
-    <div className="dashboard-body campaign-list-page"><Link className="hero-link route-back-link route-back-link-right" href="/campaign-owner"><ArrowLeft size={15} /> Back to Campaign Owner overview</Link><section className="campaign-list-heading"><div><span className="section-kicker"><span className="section-kicker-line" /> Campaign portfolio</span><h1>My Campaigns</h1><p>Manage campaigns you have created, review their status, and keep an eye on applications, placements, and tracked clicks.</p></div><Link className="primary-owner-button" href="/campaign-owner/create"><Plus size={16} /> Create campaign</Link></section><div className="campaign-list-summary"><span><strong>{campaigns.length}</strong> campaigns</span><span><strong>{campaigns.filter((campaign) => campaign.status === "Active").length}</strong> active</span><span><strong>{campaigns.reduce((sum, campaign) => sum + campaign.applications, 0)}</strong> applications</span><div className="campaign-list-view-toggle" role="group" aria-label="Campaign view"><button type="button" className={viewMode === "card" ? "campaign-list-view-active" : ""} aria-pressed={viewMode === "card"} onClick={() => setViewMode("card")}><LayoutGrid size={13} /> Cards</button><button type="button" className={viewMode === "list" ? "campaign-list-view-active" : ""} aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}><List size={13} /> List</button></div></div><section className={viewMode === "list" ? "campaign-list-grid campaign-list-grid-list" : "campaign-list-grid"}>{campaigns.map((campaign) => { const backendId = getRelayBackendId("campaign", campaign.id) ?? campaign.id; const accepted = backendApplications ? backendApplications.filter((application) => application.campaignId === backendId && application.status === "Accepted") : applications.filter((application) => application.campaignId === campaign.id && application.status === "Accepted"); const committed = campaign.clicks * (Number(campaign.cpc.replace(/[^0-9.]/g, "")) || 0); const budget = Number(campaign.budget.replace(/[^0-9.]/g, "")) || 0; const maxCommunities = Number(campaign.maxCommunities.replace(/[^0-9.]/g, "")) || 0; return <article className="campaign-list-card" key={campaign.id}><div className="campaign-list-card-top"><div><span className={statusClass(campaign.status)}><span /> {campaign.status}</span><h2>{campaign.name}</h2><p>{campaign.advertiser} · {campaign.category}</p></div><span className="campaign-list-icon"><Megaphone size={18} /></span></div><p className="campaign-list-description">{campaign.description}</p><div className="campaign-list-meta"><span><small>Target audience</small><strong>{campaign.location}</strong></span><span><small>Platforms</small><strong>{campaign.platforms.join(", ")}</strong></span><span><small>Budget</small><strong>{displayMoney(campaign.budget)}</strong></span><span><small>CPC</small><strong>{displayMoney(campaign.cpc)}</strong></span><span><small>Applications</small><strong><UsersRound size={12} /> {campaign.applications}</strong></span><span><small>Clicks</small><strong><MousePointer2 size={12} /> {campaign.clicks.toLocaleString()}</strong></span></div><div className="campaign-capacity-strip"><span><small>Accepted communities</small><strong>{accepted.length} / {maxCommunities || "—"}</strong></span><span><small>Remaining slots</small><strong>{maxCommunities ? Math.max(maxCommunities - accepted.length, 0) : "—"}</strong></span><span><small>Mock click spend</small><strong>{formatMoney(committed, 2)}</strong></span><span><small>Remaining budget</small><strong>{formatMoney(Math.max(budget - committed, 0))}</strong></span></div><div className="campaign-list-card-footer"><span><CalendarDays size={13} /> {campaign.startDate || "Start date pending"} → {campaign.endDate || "End date pending"}</span><div className="campaign-list-card-actions">{campaign.status === "Draft" && <Link className="campaign-list-publish-button" href={`/campaign-owner/create?edit=${campaign.id}`}><Pencil size={13} /> Edit Draft</Link>}{(campaign.status === "Active" || campaign.status === "Paused") && <button type="button" className="campaign-list-publish-button" onClick={() => endCampaign(campaign.id)}><Square size={13} /> End Campaign</button>}{campaign.status === "Active" && <button type="button" className="campaign-list-publish-button" onClick={() => pauseCampaign(campaign.id)}><Pause size={13} /> Pause Campaign</button>}{campaign.status === "Paused" && <button type="button" className="campaign-list-publish-button" onClick={() => resumeCampaign(campaign.id)}><Play size={13} /> Resume Campaign</button>}{campaign.status === "Draft" && <button type="button" className="campaign-list-publish-button" onClick={() => publishDraft(campaign.id)}><Send size={13} /> Publish Campaign</button>}<Link className="community-campaign-link" href={`/campaign-owner/campaigns/${campaign.id}`}>View campaign <ArrowUpRight size={14} /></Link></div></div></article>; })}</section>{loaded && campaigns.length === 0 && <div className="campaign-list-empty"><CheckCircle2 size={19} /><h2>No campaigns yet</h2><p>Create your first campaign to start receiving applications from matching communities.</p><Link className="section-link" href="/campaign-owner/create">Create campaign <ArrowUpRight size={14} /></Link></div>}</div>
-  </WorkspaceShell>;
+
+  const applyStatuses = (next: CampaignRecord[]) => { 
+    setCampaigns(next); 
+    const statuses = new Map(next.map((item) => [item.id, item.status])); 
+    saveCampaigns(readCampaigns().map((item) => statuses.has(item.id) ? { ...item, status: statuses.get(item.id)! } : item)); 
+  };
+
+  const syncLifecycle = async (campaign: CampaignRecord, action: "publish" | "pause" | "resume" | "complete") => { 
+    const backendId = getRelayBackendId("campaign", campaign.id) ?? campaign.id; 
+    if (relayBackendEnabled() && UUID_PATTERN.test(backendId)) { 
+      try { 
+        await transitionRelayCampaign(backendId, action); 
+      } catch { 
+        toast.error("Could not update the campaign", { description: "The server rejected this change. Refresh the page and try again." }); 
+        return false; 
+      } 
+    } 
+    return true; 
+  };
+
+  const publishDraft = async (campaignId: string) => { 
+    const campaign = campaigns.find((item) => item.id === campaignId); 
+    if (!campaign || campaign.status !== "Draft") return; 
+    if (!(await syncLifecycle(campaign, "publish"))) return; 
+    applyStatuses(campaigns.map((item) => item.id === campaignId ? { ...item, status: "Published" as const } : item)); 
+    recordCampaignActivity(campaign, "Campaign Published"); 
+    toast.success("Campaign published", { description: `${campaign.name} is now available to matching Community Owners.` }); 
+  };
+
+  const pauseCampaign = async (campaignId: string) => { 
+    const campaign = campaigns.find((item) => item.id === campaignId); 
+    if (!campaign || campaign.status !== "Active") return; 
+    if (!(await syncLifecycle(campaign, "pause"))) return; 
+    applyStatuses(campaigns.map((item) => item.id === campaignId ? { ...item, status: "Paused" as const } : item)); 
+    recordCampaignActivity(campaign, "Campaign Paused"); 
+    toast.success("Campaign paused", { description: `${campaign.name} is now paused. Existing applications and placements remain unchanged.` }); 
+  };
+
+  const resumeCampaign = async (campaignId: string) => { 
+    const campaign = campaigns.find((item) => item.id === campaignId); 
+    if (!campaign || campaign.status !== "Paused") return; 
+    if (!(await syncLifecycle(campaign, "resume"))) return; 
+    applyStatuses(campaigns.map((item) => item.id === campaignId ? { ...item, status: "Active" as const } : item)); 
+    recordCampaignActivity(campaign, "Campaign Resumed"); 
+    toast.success("Campaign resumed", { description: `${campaign.name} is active again. Existing applications and placements remain unchanged.` }); 
+  };
+
+  const endCampaign = async (campaignId: string) => { 
+    const campaign = campaigns.find((item) => item.id === campaignId); 
+    if (!campaign || (campaign.status !== "Active" && campaign.status !== "Paused")) return; 
+    if (!(await syncLifecycle(campaign, "complete"))) return; 
+    applyStatuses(campaigns.map((item) => item.id === campaignId ? { ...item, status: "Completed" as const } : item)); 
+    recordCampaignActivity(campaign, "Campaign Completed"); 
+    toast.success("Campaign ended", { description: `${campaign.name} is now completed. Historical applications, placements, clicks, and earnings remain available.` }); 
+  };
+
+  return (
+    <WorkspaceShell active="My Campaigns" workspaceLabel="Campaign Owner" workspaceMode="campaign-owner">
+      <div className="dashboard-body campaign-list-page">
+        <Link className="hero-link route-back-link route-back-link-right" href="/campaign-owner">
+          <ArrowLeft size={15} /> Back to Campaign Owner overview
+        </Link>
+        <section className="campaign-list-heading">
+          <div>
+            <span className="section-kicker"><span className="section-kicker-line" /> Campaign portfolio</span>
+            <h1>My Campaigns</h1>
+            <p>Manage campaigns you have created, review their status, and keep an eye on applications, placements, and tracked clicks.</p>
+          </div>
+          <Link className="primary-owner-button" href="/campaign-owner/create">
+            <Plus size={16} /> Create campaign
+          </Link>
+        </section>
+        <div className="campaign-list-summary">
+          <span><strong>{campaigns.length}</strong> campaigns</span>
+          <span><strong>{campaigns.filter((campaign) => campaign.status === "Active").length}</strong> active</span>
+          <span><strong>{campaigns.reduce((sum, campaign) => sum + campaign.applications, 0)}</strong> applications</span>
+          <div className="campaign-list-view-toggle" role="group" aria-label="Campaign view">
+            <button type="button" className={viewMode === "card" ? "campaign-list-view-active" : ""} aria-pressed={viewMode === "card"} onClick={() => setViewMode("card")}>
+              <LayoutGrid size={13} /> Cards
+            </button>
+            <button type="button" className={viewMode === "list" ? "campaign-list-view-active" : ""} aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}>
+              <List size={13} /> List
+            </button>
+          </div>
+        </div>
+        <section className={viewMode === "list" ? "campaign-list-grid campaign-list-grid-list" : "campaign-list-grid"}>
+          {campaigns.map((campaign) => { 
+            const backendId = getRelayBackendId("campaign", campaign.id) ?? campaign.id; 
+            const accepted = backendApplications 
+              ? backendApplications.filter((application) => application.campaignId === backendId && application.status === "Accepted") 
+              : applications.filter((application) => application.campaignId === campaign.id && application.status === "Accepted"); 
+            const committed = relayBackendEnabled() ? (spendByCampaign[backendId] ?? 0) : campaign.clicks * (Number(campaign.cpc.replace(/[^0-9.]/g, "")) || 0); 
+            const budget = Number(campaign.budget.replace(/[^0-9.]/g, "")) || 0; 
+            const maxCommunities = Number(campaign.maxCommunities.replace(/[^0-9.]/g, "")) || 0; 
+            
+            return (
+              <article className="campaign-list-card" key={campaign.id}>
+                <div className="campaign-list-card-top">
+                  <div>
+                    <span className={statusClass(campaign.status)}><span /> {campaign.status}</span>
+                    <h2>{campaign.name}</h2>
+                    <p>{campaign.advertiser} · {campaign.category}</p>
+                  </div>
+                  <span className="campaign-list-icon"><Megaphone size={18} /></span>
+                </div>
+                <p className="campaign-list-description">{campaign.description}</p>
+                <div className="campaign-list-meta">
+                  <span><small>Target audience</small><strong>{campaign.location}</strong></span>
+                  <span><small>Platforms</small><strong>{campaign.platforms.join(", ")}</strong></span>
+                  <span><small>Budget</small><strong>{displayMoney(campaign.budget)}</strong></span>
+                  <span><small>CPC</small><strong>{displayMoney(campaign.cpc)}</strong></span>
+                  <span><small>Applications</small><strong><UsersRound size={12} /> {campaign.applications}</strong></span>
+                  <span><small>Clicks</small><strong><MousePointer2 size={12} /> {campaign.clicks.toLocaleString()}</strong></span>
+                </div>
+                <div className="campaign-capacity-strip">
+                  <span><small>Accepted communities</small><strong>{accepted.length} / {maxCommunities || "—"}</strong></span>
+                  <span><small>Remaining slots</small><strong>{maxCommunities ? Math.max(maxCommunities - accepted.length, 0) : "—"}</strong></span>
+                  <span><small>{relayBackendEnabled() ? "Click spend" : "Mock click spend"}</small><strong>{formatMoney(committed, 2)}</strong></span>
+                  <span><small>Remaining budget</small><strong>{formatMoney(Math.max(budget - committed, 0))}</strong></span>
+                </div>
+                <div className="campaign-list-card-footer">
+                  <span><CalendarDays size={13} /> {campaign.startDate || "Start date pending"} → {campaign.endDate || "End date pending"}</span>
+                  <div className="campaign-list-card-actions">
+                    {campaign.status === "Draft" && <Link className="campaign-list-publish-button" href={`/campaign-owner/create?edit=${campaign.id}`}><Pencil size={13} /> Edit Draft</Link>}
+                    {(campaign.status === "Active" || campaign.status === "Paused") && <button type="button" className="campaign-list-publish-button" onClick={() => endCampaign(campaign.id)}><Square size={13} /> End Campaign</button>}
+                    {campaign.status === "Active" && <button type="button" className="campaign-list-publish-button" onClick={() => pauseCampaign(campaign.id)}><Pause size={13} /> Pause Campaign</button>}
+                    {campaign.status === "Paused" && <button type="button" className="campaign-list-publish-button" onClick={() => resumeCampaign(campaign.id)}><Play size={13} /> Resume Campaign</button>}
+                    {campaign.status === "Draft" && <button type="button" className="campaign-list-publish-button" onClick={() => publishDraft(campaign.id)}><Send size={13} /> Publish Campaign</button>}
+                    <Link className="community-campaign-link" href={`/campaign-owner/campaigns/${campaign.id}`}>View campaign <ArrowUpRight size={14} /></Link>
+                  </div>
+                </div>
+              </article>
+            ); 
+          })}
+        </section>
+        {loaded && campaigns.length === 0 && (
+          <div className="campaign-list-empty">
+            <CheckCircle2 size={19} />
+            <h2>No campaigns yet</h2>
+            <p>Create your first campaign to start receiving applications from matching communities.</p>
+            <Link className="section-link" href="/campaign-owner/create">Create campaign <ArrowUpRight size={14} /></Link>
+          </div>
+        )}
+      </div>
+    </WorkspaceShell>
+  );
 }
 
-function toCampaignRecord(item: RelayCampaign, local: CampaignRecord | undefined, applicationCount: number, placementCount: number): CampaignRecord {
-  return { id: local?.id ?? item.id, name: item.name, advertiser: item.advertiserName, description: item.description, advertisement: item.advertisement, destinationUrl: item.destinationUrl, platforms: item.platforms, category: item.category, location: item.location, minAudience: item.minimumAudience.toLocaleString("en-KE"), maxAudience: item.maximumAudience.toLocaleString("en-KE"), duration: `${item.durationDays} days`, maxCommunities: String(item.maximumCommunities), cpc: `KSh ${item.cpc.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`, budget: `KSh ${item.budget.toLocaleString("en-KE")}`, startDate: item.startDate, endDate: item.endDate, status: (item.status === "BudgetExhausted" ? "Budget Exhausted" : item.status) as CampaignRecord["status"], applications: applicationCount, placements: placementCount, clicks: local?.clicks ?? 0 };
+function toCampaignRecord(item: RelayCampaign, local: CampaignRecord | undefined, applicationCount: number, placementCount: number, qualifiedClicks: number): CampaignRecord {
+  return { 
+    id: local?.id ?? item.id, 
+    name: item.name, 
+    advertiser: item.advertiserName, 
+    description: item.description, 
+    advertisement: item.advertisement, 
+    destinationUrl: item.destinationUrl, 
+    platforms: item.platforms, 
+    category: item.category, 
+    location: item.location, 
+    minAudience: item.minimumAudience.toLocaleString("en-KE"), 
+    maxAudience: item.maximumAudience.toLocaleString("en-KE"), 
+    duration: `${item.durationDays} days`, 
+    maxCommunities: String(item.maximumCommunities), 
+    cpc: `KSh ${item.cpc.toLocaleString("en-KE", { minimumFractionDigits: 2 })}`, 
+    budget: `KSh ${item.budget.toLocaleString("en-KE")}`, 
+    startDate: item.startDate, 
+    endDate: item.endDate, 
+    status: (item.status === "BudgetExhausted" ? "Budget Exhausted" : item.status) as CampaignRecord["status"], 
+    applications: applicationCount, 
+    placements: placementCount, 
+    clicks: qualifiedClicks 
+  };
 }

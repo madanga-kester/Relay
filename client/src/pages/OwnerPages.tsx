@@ -66,6 +66,7 @@ import {
   relayBackendEnabled,
   type RelayCommunity,
 } from "@/lib/relayApi";
+import { roundedCommunityPayout } from "@/lib/relayMappers";
 
 type Community = {
   slug: string;
@@ -90,6 +91,7 @@ type Community = {
   images?: string[];
   profileImage?: string;
   bannerImage?: string;
+  campaignsRun?: number;  recentCampaigns?: { id: string; name: string; clicks: number; earned: number }[];  matchingCampaign?: { name: string; location: string; payout: number; durationDays: number };
 };
 
 const initialCommunities: Community[] = [
@@ -188,6 +190,7 @@ function toCommunity(
   localSlug: string | undefined,
   activeCampaigns: number,
   opportunities: number,
+  extra: CommunityExtra = { clicks: 0, earned: 0, campaignsRun: 0, recent: [] },
 ): Community {
   return {
     slug: localSlug ?? item.id,
@@ -215,14 +218,19 @@ function toCommunity(
       : "Owner evidence pending",
     campaignOpportunities: opportunities,
     activeCampaigns,
-    clicks: "0",
-    earned: 0,
+    clicks: extra.clicks.toLocaleString("en-KE"),
+    earned: extra.earned,
     posts: "0 posts",
+    campaignsRun: extra.campaignsRun,
+    recentCampaigns: extra.recent,
+    matchingCampaign: extra.match,
     health:
       item.verificationStatus === "Suspended" ? "Needs attention" : "Healthy",
     color: communityColors[index % 3],
   };
 }
+
+type CommunityExtra = {  clicks: number;  earned: number;  campaignsRun: number;  recent: { id: string; name: string; clicks: number; earned: number }[];  match?: { name: string; location: string; payout: number; durationDays: number };};function buildCommunityExtra(  item: RelayCommunity,  placementPage: Awaited<ReturnType<typeof listMyRelayPlacements>> | null,  campaignPage: Awaited<ReturnType<typeof listRelayCampaigns>> | null,  earningRows: Awaited<ReturnType<typeof getRelayEarnings>> | null,  applicationPage: Awaited<ReturnType<typeof listRelayApplications>> | null,): CommunityExtra {  const myPlacements = (placementPage?.items ?? []).filter((placement) => placement.communityId === item.id);  const myPlacementIds = new Set(myPlacements.map((placement) => placement.id));  const campaignNameByPlacement = new Map(    (applicationPage?.items ?? [])      .filter((application) => application.placement)      .map((application) => [application.placement!.id, application.campaign?.name ?? ""] as const),  );  const perCampaign = new Map<string, { id: string; name: string; clicks: number; earned: number }>();  let clicks = 0;  let earned = 0;  (earningRows ?? []).forEach((row) => {    if (!myPlacementIds.has(row.placementId)) return;    if (!["Pending", "Held", "Completed"].includes(row.status)) return;    clicks += row.qualifiedClicks;    earned += row.amount;    const current = perCampaign.get(row.campaignId) ?? { id: row.campaignId, name: campaignNameByPlacement.get(row.placementId) || "Campaign", clicks: 0, earned: 0 };    current.clicks += row.qualifiedClicks;    current.earned += row.amount;    perCampaign.set(row.campaignId, current);  });  const matching = (campaignPage?.items ?? []).find((campaign) => (campaign.status === "Published" || campaign.status === "Active") && campaign.platforms.includes(item.platform));  return {    clicks,    earned: Math.round(earned * 100) / 100,    campaignsRun: new Set(myPlacements.map((placement) => placement.campaignId)).size,    recent: Array.from(perCampaign.values()).sort((a, b) => b.earned - a.earned).slice(0, 5),    match: matching ? { name: matching.name, location: matching.location, payout: roundedCommunityPayout(matching.cpc), durationDays: matching.durationDays } : undefined,  };}
 
 function useCommunities() {
   const [items, setItems] = useState<Community[]>(() =>
@@ -237,11 +245,7 @@ function useCommunities() {
     let cancelled = false;
     void (async () => {
       try {
-        const [communityPage, placementPage, campaignPage] = await Promise.all([
-          listMyRelayCommunities(),
-          listMyRelayPlacements().catch(() => null),
-          listRelayCampaigns().catch(() => null),
-        ]);
+        const [communityPage, placementPage, campaignPage, earningRows, applicationPage] = await Promise.all([          listMyRelayCommunities(),          listMyRelayPlacements().catch(() => null),          listRelayCampaigns().catch(() => null),          getRelayEarnings().catch(() => null),          listRelayApplications().catch(() => null),        ]);
         if (cancelled) return;
         const local = readCommunities();
         setItems(
@@ -268,6 +272,7 @@ function useCommunities() {
                       campaign.platforms.includes(item.platform),
                   ).length
                 : 0,
+              buildCommunityExtra(item, placementPage, campaignPage, earningRows, applicationPage),
             ),
           ),
         );
@@ -607,7 +612,7 @@ export function CommunityDetail() {
   }
 
   const clicks = parseAudience(community.clicks);
-  const completed = relayBackendEnabled() ? 0 : 4;
+  const completed = relayBackendEnabled() ? (community.campaignsRun ?? 0) : 4;
   const averageClicks = completed ? Math.round(clicks / completed) : 0;
   const galleryImages = community.images ?? [];
   const addGalleryImages = async (files: FileList | null) => {
@@ -1211,7 +1216,7 @@ export function CommunityDetail() {
                   </div>
                   <h2>Community momentum</h2>
                 </div>
-                <span className="section-count">Last 30 days</span>
+                <span className="section-count">{relayBackendEnabled() ? "All time" : "Last 30 days"}</span>
               </div>
               <div className="detail-performance-summary">
                 <div>
@@ -1223,7 +1228,7 @@ export function CommunityDetail() {
                   <strong>{averageClicks.toLocaleString()}</strong>
                 </div>
                 <div>
-                  <small>Campaigns completed</small>
+                  <small>{relayBackendEnabled() ? "Campaigns run" : "Campaigns completed"}</small>
                   <strong>{completed}</strong>
                 </div>
                 <div>
@@ -1231,7 +1236,7 @@ export function CommunityDetail() {
                   <strong>{format(community.earned)}</strong>
                 </div>
               </div>
-              <div className="detail-chart-card">
+              {!relayBackendEnabled() && <div className="detail-chart-card">
                 <div className="detail-chart-header">
                   <span>Clicks over time</span>
                   <strong>{community.clicks}</strong>
@@ -1246,7 +1251,7 @@ export function CommunityDetail() {
                   <span>Jun 02</span>
                   <span>Jun 17</span>
                 </div>
-              </div>
+              </div>}
             </section>
             <section className="owner-section eligibility-section">
               <div className="section-heading">
@@ -1261,12 +1266,12 @@ export function CommunityDetail() {
                   Find Campaigns <ChevronRight size={14} />
                 </Link>
               </div>
-              <div className="eligibility-card">
+              {relayBackendEnabled() && !community.matchingCampaign && <p>No campaigns match this community right now. New matching campaigns will appear here.</p>}              {(!relayBackendEnabled() || community.matchingCampaign) && <div className="eligibility-card">
                 <div>
-                  <span className="campaign-brand">Urban Sneakers Launch</span>
+                  <span className="campaign-brand">{community.matchingCampaign?.name ?? "Urban Sneakers Launch"}</span>
                   <p>
-                    {community.platform} · Kenyan shoppers · {format(1.5)} /
-                    qualified click · 48 hours
+                    {community.platform} · {community.matchingCampaign?.location ?? "Kenyan shoppers"} · {format(community.matchingCampaign?.payout ?? 1.5)} /
+                    qualified click · {community.matchingCampaign ? `${community.matchingCampaign.durationDays} days` : "48 hours"}
                   </p>
                   <small>
                     Matched by platform, audience, category, location, and
@@ -1276,7 +1281,7 @@ export function CommunityDetail() {
                 <Link className="accept-button" href="/campaigns">
                   View Campaign <ArrowUpRight size={14} />
                 </Link>
-              </div>
+              </div>}
             </section>
             <section className="owner-section">
               <div className="section-heading">
@@ -1287,7 +1292,7 @@ export function CommunityDetail() {
                   <h2>Recent campaign activity</h2>
                 </div>
               </div>
-              <div className="detail-campaign-card">
+              {relayBackendEnabled() && ((community.recentCampaigns ?? []).length === 0 ? <p>No campaign activity yet. Clicks and earnings appear here after a campaign runs in this community.</p> : (community.recentCampaigns ?? []).map((item) => <div className="detail-campaign-card" key={item.id}><div className="campaign-identity"><PlatformMark platform={community.platform} color={community.color} /><div><div className="campaign-brand">{item.name}</div><div className="campaign-category">{community.name}</div></div></div><p>{item.clicks.toLocaleString("en-KE")} qualified clicks</p><strong>{format(item.earned)} earned</strong></div>))}              {!relayBackendEnabled() && <div className="detail-campaign-card">
                 <div className="campaign-identity">
                   <PlatformMark platform="Orbit" color="coral" />
                   <div>
@@ -1302,8 +1307,7 @@ export function CommunityDetail() {
                 </span>
                 <p>Make space for better mobile plans</p>
                 <strong>{format(128.4)} earned · 1,842 clicks</strong>
-              </div>
-            </section>
+              </div>}            </section>
           </main>
           <aside className="owner-side-column">
             <section className="insight-card detail-earnings-card">

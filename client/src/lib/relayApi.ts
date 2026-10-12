@@ -1,7 +1,7 @@
 const API_BASE = (import.meta.env.VITE_RELAY_API_URL as string | undefined)?.replace(/\/$/, "") ?? "/api/v1";
 const ID_MAP_KEY = "relay-backend-id-map";
 let csrfToken: string | null = null;
-
+let sessionExpiryNotified = false;
 export type RelayPage<T> = {
   items: T[];
   page: number;
@@ -139,6 +139,12 @@ export async function relayRequest<T>(path: string, options: RequestOptions = {}
     } catch {
       /* Use the status fallback below. */
     }
+
+    if (response.status === 401 && path !== "/auth/me" && path !== "/auth/login" && !sessionExpiryNotified) {
+      sessionExpiryNotified = true;
+      window.dispatchEvent(new Event("relay:session-changed"));
+    }
+
     if (response.status === 401 && !detail) {
       throw new RelayApiError("Your session is not active. Please sign in and try again.", 401);
     }
@@ -209,24 +215,30 @@ export async function loginRelayAccount(email: string, password: string) {
 }
 
 export async function getRelaySession() {
-  return relayRequest<RelayUser>("/auth/me");
+  const user = await relayRequest<RelayUser>("/auth/me");
+  sessionExpiryNotified = false;
+  return user;
 }
 
 export async function logoutRelayAccount() {
   csrfToken = null;
-  const result = await relayRequest<void>("/auth/logout", {
-    method: "POST",
-  });
-  [
-    "relay_signup_role",
-    "relay_signup_name",
-    "relay_signup_email",
-    "relay_onboarding_complete_role",
-    "relay_reset_email",
-    "relay_reset_token",
-  ].forEach((key) => sessionStorage.removeItem(key));
-  window.dispatchEvent(new Event("relay:session-changed"));
-  return result;
+  try {
+    return await relayRequest<void>("/auth/logout", {
+      method: "POST",
+    });
+  } finally {
+    [
+      "relay_signup_role",
+      "relay_signup_name",
+      "relay_signup_email",
+      "relay_onboarding_complete_role",
+      "relay_onboarding_advertiser",
+      "relay_reset_email",
+      "relay_reset_token",
+      "relay-breadcrumb-trail",
+    ].forEach((key) => sessionStorage.removeItem(key));
+    window.dispatchEvent(new Event("relay:session-changed"));
+  }
 }
 
 export async function saveRelayProfile(profile: {

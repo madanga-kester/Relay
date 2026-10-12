@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, Check, Eye, EyeOff, Megaphone, UsersRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, Check, Eye, EyeOff, Loader2, Megaphone, UsersRound } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { registerRelayAccount, relayBackendEnabled } from "@/lib/relayApi";
@@ -31,6 +31,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
 
   const update = (key: keyof typeof form, value: string) => setForm(current => ({ ...current, [key]: value }));
@@ -58,6 +59,7 @@ export default function RegisterPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitting) return;
     setError("");
 
     if (!acceptedTerms) {
@@ -72,6 +74,7 @@ export default function RegisterPage() {
 
     if (relayBackendEnabled()) {
       try {
+        setSubmitting(true);
         await registerRelayAccount({
           email: form.email,
           displayName: form.name,
@@ -79,6 +82,7 @@ export default function RegisterPage() {
           role: role === "community-owner" ? "CommunityOwner" : "Advertiser",
         });
       } catch {
+        setSubmitting(false);
         setError("Relay could not create this account. Check the details and try again.");
         return;
       }
@@ -174,7 +178,7 @@ export default function RegisterPage() {
                   fontWeight: 500,
                 }}
               >
-                
+                {/* Back button slot */}
               </button>
 
               <span className="public-eyebrow public-eyebrow-dark"><span /> Step 2 of 2</span>
@@ -318,8 +322,14 @@ export default function RegisterPage() {
 
                 {error && <p className="auth-error">{error}</p>}
 
-                <button className="auth-submit" type="submit">
-                  Create Account <ArrowRight size={16} />
+                <button 
+                  className="auth-submit" 
+                  type="submit" 
+                  disabled={submitting} 
+                  aria-busy={submitting} 
+                  style={submitting ? { opacity: 0.85, cursor: "not-allowed" } : undefined}
+                >
+                  {submitting ? <><Loader2 size={16} className="animate-spin" /> Creating account...</> : <>Create Account <ArrowRight size={16} /></>}
                 </button>
 
                 <p className="auth-switch">
