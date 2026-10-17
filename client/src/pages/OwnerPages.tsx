@@ -55,7 +55,7 @@ import {
 
 import { toast } from "sonner";
 import { useActivityFeed } from "@/lib/useActivityFeed";
-import { compressImageToDataUrl } from "@/lib/imageUtils";
+import { compressImageToBlob, compressImageToDataUrl } from "@/lib/imageUtils";
 import {
   getRelayBackendId,
   getRelayEarnings,
@@ -63,8 +63,16 @@ import {
   listMyRelayPlacements,
   listRelayApplications,
   listRelayCampaigns,
+  listRelayImageLinks,
   relayBackendEnabled,
+  relayImageLinkInput,
+  relayImageSource,
+  relayImageUrl,
+  saveRelayImageLinks,
+  uploadRelayImage,
   type RelayCommunity,
+  type RelayImageLink,
+  type RelayImageLinkInput,
 } from "@/lib/relayApi";
 import { roundedCommunityPayout } from "@/lib/relayMappers";
 
@@ -91,6 +99,7 @@ type Community = {
   images?: string[];
   profileImage?: string;
   bannerImage?: string;
+  backendId?: string;
   campaignsRun?: number;  recentCampaigns?: { id: string; name: string; clicks: number; earned: number }[];  matchingCampaign?: { name: string; location: string; payout: number; durationDays: number };
 };
 
@@ -191,9 +200,14 @@ function toCommunity(
   activeCampaigns: number,
   opportunities: number,
   extra: CommunityExtra = { clicks: 0, earned: 0, campaignsRun: 0, recent: [] },
+  links: RelayImageLink[] = [],
 ): Community {
   return {
     slug: localSlug ?? item.id,
+    backendId: item.id,
+    images: links.filter((link) => link.slot === "Gallery").map((link) => relayImageSource(link)).filter(Boolean),
+    profileImage: relayImageSource(links.find((link) => link.slot === "Profile") ?? {}) || undefined,
+    bannerImage: relayImageSource(links.find((link) => link.slot === "Banner") ?? {}) || undefined,
     name: item.name,
     platform: item.platform,
     category: item.category,
@@ -247,6 +261,12 @@ function useCommunities() {
       try {
         const [communityPage, placementPage, campaignPage, earningRows, applicationPage] = await Promise.all([          listMyRelayCommunities(),          listMyRelayPlacements().catch(() => null),          listRelayCampaigns().catch(() => null),          getRelayEarnings().catch(() => null),          listRelayApplications().catch(() => null),        ]);
         if (cancelled) return;
+        const imageLinks = await Promise.all(
+          communityPage.items.map((item) =>
+            listRelayImageLinks("Community", item.id).catch(() => [] as RelayImageLink[]),
+          ),
+        );
+        if (cancelled) return;
         const local = readCommunities();
         setItems(
           communityPage.items.map((item, index) =>
@@ -273,6 +293,7 @@ function useCommunities() {
                   ).length
                 : 0,
               buildCommunityExtra(item, placementPage, campaignPage, earningRows, applicationPage),
+              imageLinks[index] ?? [],
             ),
           ),
         );
@@ -615,6 +636,24 @@ export function CommunityDetail() {
   const completed = relayBackendEnabled() ? (community.campaignsRun ?? 0) : 4;
   const averageClicks = completed ? Math.round(clicks / completed) : 0;
   const galleryImages = community.images ?? [];
+  const persistImages = async (next: {
+    images: string[];
+    profileImage?: string;
+    bannerImage?: string;
+  }) => {
+    if (!community.backendId) return false;
+    const links = [
+      ...next.images.map((source) => relayImageLinkInput("Gallery", source)),
+      next.profileImage ? relayImageLinkInput("Profile", next.profileImage) : null,
+      next.bannerImage ? relayImageLinkInput("Banner", next.bannerImage) : null,
+    ].filter((item): item is RelayImageLinkInput => item !== null);
+    try {
+      await saveRelayImageLinks("Community", community.backendId, links);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const addGalleryImages = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setImageMessage("");
@@ -630,19 +669,27 @@ export function CommunityDetail() {
     let failed = 0;
     for (const file of picked) {
       try {
-        added.push(await compressImageToDataUrl(file));
+        added.push(
+          relayBackendEnabled()
+            ? relayImageUrl((await uploadRelayImage(await compressImageToBlob(file), "CommunityGallery")).id)
+            : await compressImageToDataUrl(file),
+        );
       } catch {
         failed += 1;
       }
     }
     setImageBusy(false);
     if (added.length > 0) {
-      const saved = updateCommunity(community.slug, {
-        images: [...galleryImages, ...added],
-      });
+      const nextImages = [...galleryImages, ...added];
+      const saved = relayBackendEnabled()
+        ? (await persistImages({ images: nextImages, profileImage: community.profileImage, bannerImage: community.bannerImage })) &&
+          updateCommunity(community.slug, { images: nextImages })
+        : updateCommunity(community.slug, { images: nextImages });
       if (!saved) {
         setImageMessage(
-          "Browser storage is full, so these images could not be saved. Remove some images and try again.",
+          relayBackendEnabled()
+            ? "These images could not be saved. Please try again."
+            : "Browser storage is full, so these images could not be saved. Remove some images and try again.",
         );
         return;
       }
@@ -657,16 +704,37 @@ export function CommunityDetail() {
       );
     if (parts.length > 0) setImageMessage(parts.join(". ") + ".");
   };
-  const removeGalleryImage = (index: number) => {
-    const saved = updateCommunity(community.slug, {
-      images: galleryImages.filter((_, i) => i !== index),
-    });
+  const removeGalleryImage = async (index: number) => {
+    const nextImages = galleryImages.filter((_, i) => i !== index);
+    if (relayBackendEnabled()) {
+      const persisted = await persistImages({
+        images: nextImages,
+        profileImage: community.profileImage,
+        bannerImage: community.bannerImage,
+      });
+      if (!persisted) {
+        setImageMessage("Could not save this change. Please try again.");
+        return;
+      }
+    }
+    const saved = updateCommunity(community.slug, { images: nextImages });
     if (!saved) setImageMessage("Could not save this change. Please try again.");
   };
-  const setCoverImage = (
+  const setCoverImage = async (
     target: "profile" | "banner",
     value: string | undefined,
   ) => {
+    if (relayBackendEnabled()) {
+      const persisted = await persistImages({
+        images: galleryImages,
+        profileImage: target === "profile" ? value : community.profileImage,
+        bannerImage: target === "banner" ? value : community.bannerImage,
+      });
+      if (!persisted) {
+        setCoverMessage("This change could not be saved. Please try again.");
+        return;
+      }
+    }
     const saved = updateCommunity(
       community.slug,
       target === "profile" ? { profileImage: value } : { bannerImage: value },
@@ -689,11 +757,18 @@ export function CommunityDetail() {
     setCoverMessage("");
     setImageBusy(true);
     try {
-      const dataUrl = await compressImageToDataUrl(
-        file,
-        target === "banner" ? 1200 : 400,
-      );
-      setCoverImage(target, dataUrl);
+      const maxSize = target === "banner" ? 1200 : 400;
+      const source = relayBackendEnabled()
+        ? relayImageUrl(
+            (
+              await uploadRelayImage(
+                await compressImageToBlob(file, maxSize),
+                target === "banner" ? "CommunityBanner" : "CommunityProfile",
+              )
+            ).id,
+          )
+        : await compressImageToDataUrl(file, maxSize);
+      await setCoverImage(target, source);
     } catch (error) {
       setCoverMessage(
         error instanceof Error ? error.message : "Could not add this image.",

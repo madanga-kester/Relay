@@ -44,7 +44,9 @@ import {
   listMyRelayCommunities,
   listRelayApplications,
   listRelayCampaigns,
+  listRelayImageLinks,
   relayBackendEnabled,
+  relayImageSource,
   setRelayBackendId,
 } from "@/lib/relayApi";
 import {
@@ -85,6 +87,27 @@ export default function CommunityOwnerCampaigns() {
   
   const [view, setView] = useState<"cards" | "list">("cards");
   const [detailsCampaignId, setDetailsCampaignId] = useState<string | null>(null);
+  const [detailsImage, setDetailsImage] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!detailsCampaignId || !relayBackendEnabled()) {
+      setDetailsImage(undefined);
+      return;
+    }
+    let cancelled = false;
+    listRelayImageLinks("Campaign", detailsCampaignId)
+      .then((links) => {
+        if (cancelled) return;
+        const ad = links.find((link) => link.slot === "Ad");
+        setDetailsImage(ad ? relayImageSource(ad) || undefined : undefined);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailsImage(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailsCampaignId]);
 
   const ownerIds = useMemo(
     () => new Set(communityList.map((community) => community.ownerId)),
@@ -366,6 +389,7 @@ export default function CommunityOwnerCampaigns() {
   };
 
   const detailsMedia = detailsCampaign ? mediaFor(detailsCampaign) : undefined;
+  const detailsImageSource = detailsImage ?? detailsMedia?.image;
   const detailsVideoLink =
     detailsMedia?.video && /^https?:\/\//i.test(detailsMedia.video.trim())
       ? detailsMedia.video.trim()
@@ -657,11 +681,11 @@ export default function CommunityOwnerCampaigns() {
                     </div>
                   )}
 
-                  {detailsMedia?.image && (
+                  {detailsImageSource && (
                     <div className="col-span-2 sm:col-span-4">
                       <h3 className="mb-2 text-sm font-bold">Advertisement image</h3>
                       <img
-                        src={detailsMedia.image}
+                        src={detailsImageSource}
                         alt={`${detailsCampaign.name} advertisement`}
                         className="w-full rounded-xl object-contain"
                         style={{ maxHeight: 360, background: "var(--surface-soft)" }}

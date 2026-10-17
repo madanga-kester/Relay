@@ -9,7 +9,7 @@ import { CampaignRecord, readCampaigns } from "./campaignData";
 import { recordAdminActivity } from "@/data/marketplaceData";
 import { appliedLabel, roundedCommunityPayout } from "@/lib/relayMappers";
 import { PlatformMark, readCommunities } from "@/pages/OwnerPages";
-import { getRelayBackendId, listMyRelayCampaigns, listRelayApplications, listRelayCommunities, relayBackendEnabled, reviewRelayApplication, setRelayBackendId, type RelayCampaign, type RelayCommunity } from "@/lib/relayApi";
+import { getRelayBackendId, listMyRelayCampaigns, listRelayApplications, listRelayCommunities, listRelayImageLinks, relayBackendEnabled, relayImageSource, reviewRelayApplication, setRelayBackendId, type RelayCampaign, type RelayCommunity, type RelayImageLink } from "@/lib/relayApi";
 
 
 function formatWhen(value?: string | null) {
@@ -178,9 +178,22 @@ function CommunityDialog({ application, details, onClose, onDecide }: { applicat
     if (!application) return undefined;
     return readCommunities().find((item) => item.name === application.community);
   }, [application]);
-  const bannerImage = localCommunity?.bannerImage;
-  const profileImage = localCommunity?.profileImage;
-  const galleryImages = localCommunity?.images ?? [];
+  const [imageLinks, setImageLinks] = useState<RelayImageLink[]>([]);
+  useEffect(() => {
+    if (!application || !relayBackendEnabled()) {
+      setImageLinks([]);
+      return;
+    }
+    let cancelled = false;
+    listRelayImageLinks("Community", application.communityId)
+      .then((links) => { if (!cancelled) setImageLinks(links); })
+      .catch(() => { if (!cancelled) setImageLinks([]); });
+    return () => { cancelled = true; };
+  }, [application]);
+  const backendImages = relayBackendEnabled();
+  const bannerImage = backendImages ? relayImageSource(imageLinks.find((link) => link.slot === "Banner") ?? {}) || undefined : localCommunity?.bannerImage;
+  const profileImage = backendImages ? relayImageSource(imageLinks.find((link) => link.slot === "Profile") ?? {}) || undefined : localCommunity?.profileImage;
+  const galleryImages = backendImages ? imageLinks.filter((link) => link.slot === "Gallery").map((link) => relayImageSource(link)).filter(Boolean) : localCommunity?.images ?? [];
   return <Dialog open={Boolean(application)} onOpenChange={(open) => { if (!open) onClose(); }}>
     <DialogContent className="max-h-[90vh] gap-0 overflow-y-auto p-0 sm:max-w-5xl" style={{ background: "var(--surface)", color: "var(--ink)", borderColor: "var(--border)" }}>
       {application && <>

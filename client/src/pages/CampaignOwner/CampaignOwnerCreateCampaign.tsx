@@ -14,7 +14,7 @@ import {
 
 import { toast } from "sonner";
 import { Eye, ImagePlus, X } from "lucide-react";
-import { compressImageToDataUrl } from "@/lib/imageUtils";
+import { compressImageToBlob, compressImageToDataUrl } from "@/lib/imageUtils";
 import { AD_PREVIEW_KEY } from "./CampaignOwnerAdPreview";
 
 import { useState, type FormEvent } from "react";
@@ -24,6 +24,12 @@ import { CampaignRecord, readCampaigns, saveCampaigns } from "./campaignData";
 import { formatMoney, getCpcBreakdown } from "@/data/marketplaceData";
 import {
   createRelayCampaign,
+  deleteRelayImage,
+  relayImageIdFromUrl,
+  relayImageLinkInput,
+  relayImageUrl,
+  saveRelayImageLinks,
+  uploadRelayImage,
   relayBackendEnabled,
   setRelayBackendId,
   transitionRelayCampaign,
@@ -161,7 +167,9 @@ export default function CampaignOwnerCreateCampaign() {
     setMediaError("");
     setMediaBusy(true);
     try {
-      const dataUrl = await compressImageToDataUrl(file, 1200);
+      const dataUrl = relayBackendEnabled()
+        ? relayImageUrl((await uploadRelayImage(await compressImageToBlob(file, 1200), "CampaignAd")).id)
+        : await compressImageToDataUrl(file, 1200);
       setForm((current) => ({ ...current, mediaImage: dataUrl }));
     } catch (error) {
       setMediaError(
@@ -173,6 +181,8 @@ export default function CampaignOwnerCreateCampaign() {
 
   const removeImage = () => {
     setMediaError("");
+    const imageId = form.mediaImage ? relayImageIdFromUrl(form.mediaImage) : null;
+    if (imageId) void deleteRelayImage(imageId).catch(() => undefined);
     setForm((current) => ({ ...current, mediaImage: undefined }));
   };
 
@@ -340,6 +350,16 @@ export default function CampaignOwnerCreateCampaign() {
         });
 
         backendCampaignId = created.id;
+        const adLink = form.mediaImage ? relayImageLinkInput("Ad", form.mediaImage) : null;
+        if (adLink) {
+          try {
+            await saveRelayImageLinks("Campaign", created.id, [adLink]);
+          } catch {
+            toast.error("The advertisement image could not be attached", {
+              description: "The campaign was created without the image.",
+            });
+          }
+        }
         await transitionRelayCampaign(created.id, "publish");
       } catch (error) {
         setSubmitting(false);

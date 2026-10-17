@@ -112,7 +112,7 @@ export async function relayRequest<T>(path: string, options: RequestOptions = {}
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
 
-  if (options.body && !headers.has("Content-Type")) {
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -774,5 +774,58 @@ export async function saveRelayPreferences(values: Record<string, string | boole
   return relayRequest<RelayPreferences>("/preferences", {
     method: "PUT",
     body: JSON.stringify({ values }),
+  });
+}
+
+export type RelayImagePurpose = "CommunityProfile" | "CommunityBanner" | "CommunityGallery" | "CampaignAd" | "Avatar";
+export type RelayImageEntity = "Community" | "Campaign";
+export type RelayImageSlot = "Profile" | "Banner" | "Gallery" | "Ad";
+export type RelayImageLinkInput = { slot: RelayImageSlot; imageId?: string; url?: string };
+export type RelayImageLink = { slot: RelayImageSlot; imageId?: string | null; url?: string | null; sortOrder: number };
+
+export function relayImageUrl(imageId: string) {
+  return `${API_BASE}/images/${imageId}`;
+}
+
+export function relayImageIdFromUrl(source: string) {
+  const prefix = `${API_BASE}/images/`;
+  if (!source.startsWith(prefix)) return null;
+  const id = source.slice(prefix.length);
+  return /^[0-9a-fA-F-]{36}$/.test(id) ? id : null;
+}
+
+export function relayImageSource(link: { imageId?: string | null; url?: string | null }) {
+  if (link.imageId) return relayImageUrl(link.imageId);
+  return link.url ?? "";
+}
+
+export function relayImageLinkInput(slot: RelayImageSlot, source: string): RelayImageLinkInput | null {
+  const imageId = relayImageIdFromUrl(source);
+  if (imageId) return { slot, imageId };
+  return /^https?:\/\//i.test(source) ? { slot, url: source } : null;
+}
+
+export async function uploadRelayImage(blob: Blob, purpose: RelayImagePurpose, fileName = "image.jpg") {
+  const body = new FormData();
+  body.append("purpose", purpose);
+  body.append("file", blob, fileName);
+  return relayRequest<{ id: string; purpose: string; contentType: string; size: number }>("/images", {
+    method: "POST",
+    body,
+  });
+}
+
+export async function deleteRelayImage(imageId: string) {
+  return relayRequest<void>(`/images/${imageId}`, { method: "DELETE" });
+}
+
+export async function listRelayImageLinks(entity: RelayImageEntity, entityId: string) {
+  return relayRequest<RelayImageLink[]>(`/images/links/${entity}/${entityId}`);
+}
+
+export async function saveRelayImageLinks(entity: RelayImageEntity, entityId: string, items: RelayImageLinkInput[]) {
+  return relayRequest<RelayImageLink[]>(`/images/links/${entity}/${entityId}`, {
+    method: "PUT",
+    body: JSON.stringify({ items }),
   });
 }
