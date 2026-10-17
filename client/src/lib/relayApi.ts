@@ -198,7 +198,7 @@ export async function registerRelayAccount(payload: {
   password: string;
   role: "Advertiser" | "CommunityOwner";
 }) {
-  return relayRequest<RelayUser>("/auth/register", {
+  return relayRequest<void>("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -231,6 +231,7 @@ export async function logoutRelayAccount() {
       "relay_signup_role",
       "relay_signup_name",
       "relay_signup_email",
+      "relay_email_verified",
       "relay_onboarding_complete_role",
       "relay_onboarding_advertiser",
       "relay_reset_email",

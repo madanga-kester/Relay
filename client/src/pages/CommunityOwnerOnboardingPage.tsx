@@ -1,7 +1,7 @@
 import { Globe2, MapPin, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { OnboardingShell, ReviewRow } from "./OnboardingShell";
+import { OnboardingShell, ReviewRow } from "./Auth/Onboarding/OnboardingShell";
 import { getRelayProfile, relayBackendEnabled, saveRelayProfile } from "@/lib/relayApi";
 
 type CommunityForm = { name: string; communityName: string; platform: string; members: string; category: string; location: string };

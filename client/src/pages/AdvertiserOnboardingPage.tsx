@@ -1,7 +1,7 @@
 import { Building2, Globe2, MapPin, Target } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { OnboardingShell, ReviewRow } from "./OnboardingShell";
+import { OnboardingShell, ReviewRow } from "./Auth/Onboarding/OnboardingShell";
 import { getRelayProfile, relayBackendEnabled, saveRelayProfile } from "@/lib/relayApi";
 
 type AdvertiserForm = {
